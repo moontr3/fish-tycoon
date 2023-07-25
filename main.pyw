@@ -94,7 +94,7 @@ load_locale(locale)
 # app classes
 
 class FishType:
-    def __init__(self, key, size, image, rareness, rareness_increase, boid_size):
+    def __init__(self, key, size, image, rareness, rareness_increase, boid_size, bad):
         self.key = key
         self.size = size
         self.image = image
