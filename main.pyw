@@ -235,7 +235,7 @@ class FishParticle:
         self.start_pos = pos
         self.end_pos = (windowx-50, 50)
         self.key = 0
-        self.vel = 25/abs(self.end_pos[0]-self.start_pos[0])
+        self.vel = 25/abs(self.end_pos[0]-self.start_pos[0])+0.01
         self.removable = False
         self.sin = 0.0
             
@@ -254,8 +254,8 @@ class FishParticle:
     # draws the fish
     def draw(self):
         draw.image(
-            self.image, (self.x, self.y-self.sin*40), (self.size, self.size),
-            h='m', v='m', flip=not self.flip
+            self.image, (self.x+self.sin*(abs(self.end_pos[0]-self.start_pos[0])/10), self.y-self.sin*50),
+            (self.size, self.size), h='m', v='m', flip=not self.flip, opacity=min(1.0, (1-self.key)*5)*255
         )
 
 

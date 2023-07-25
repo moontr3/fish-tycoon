@@ -104,12 +104,12 @@ def image(
 
     # getting font
     try:
-        image = images[f'res/images/{image}'][size[0]][size[1]]
+        image = images[f'res/images/{image}'][size[0]][size[1]].copy()
     except:
         images[f'res/images/{image}'] = {}
         images[f'res/images/{image}'][size[0]] = {}
         images[f'res/images/{image}'][size[0]][size[1]] = pg.transform.smoothscale(pg.image.load(f'res/images/{image}'), size)
-        image = images[f'res/images/{image}'][size[0]][size[1]]
+        image = images[f'res/images/{image}'][size[0]][size[1]].copy()
 
     # flipping
     if flip:

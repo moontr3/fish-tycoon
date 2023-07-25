@@ -8,7 +8,7 @@
     },
     "carp": {
         "size": 50,
-        "image": "cod.png",
+        "image": "carp.png",
         "boid_size": [1,3],
         "rareness": 300,
         "rareness_increase": 0
