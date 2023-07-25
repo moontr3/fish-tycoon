@@ -317,6 +317,8 @@ class Game:
         self.spawn_after = self.spawn_speed
         self.fx = []
 
+        self.balance = 0
+
         self.bin_opened = False
         self.menu_opened = False
         self.paused = False
@@ -327,6 +329,12 @@ class Game:
     # adds the effect (particles and all that stuff)
     def add_fx(self, fx):
         self.fx.append(fx)
+
+    # draws the gui
+    def draw_gui(self):
+        # money counter
+        draw.image('coin.png', (40,40), (32,32), h='m', v='m')
+        draw.text(str(self.balance), (70,40), size=26, v='m')
 
     # updates the game
     def update(self):
@@ -383,6 +391,7 @@ class Game:
         # effects
         for i in self.fx:
             i.draw()
+        self.draw_gui()
 
 
 # preparing
