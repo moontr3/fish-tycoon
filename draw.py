@@ -6,6 +6,7 @@ import pygame as pg
 # INITIALIZING FONTS
 pg.font.init()
 fonts = {}
+images = {}
 
 for i in glob.glob('res/fonts/*.ttf'):
     i = i.replace('\\','/')
@@ -82,6 +83,75 @@ def text(
     # drawing
     surface.blit(rtext, btext)
     return font.size(text)
+
+
+# IMAGE DRAWING
+def image(
+        image,
+        pos=(0,0),
+        size=(48,48), 
+        h='l', 
+        v='t', 
+        rotation=0,
+        opacity=255,
+        flip=False,
+        surface=None
+    ):
+
+    # surface
+    if surface == None:
+        surface = def_surface
+
+    # getting font
+    try:
+        image = images[f'res/images/{image}'][size[0]][size[1]]
+    except:
+        images[f'res/images/{image}'] = {}
+        images[f'res/images/{image}'][size[0]] = {}
+        images[f'res/images/{image}'][size[0]][size[1]] = pg.transform.smoothscale(pg.image.load(f'res/images/{image}'), size)
+        image = images[f'res/images/{image}'][size[0]][size[1]]
+
+    # flipping
+    if flip:
+        image = pg.transform.flip(image, True, False)
+
+    # rotation
+    if rotation != 0:
+        image = pg.transform.rotate(image, rotation)
+
+    # opacity
+    if opacity != 255:
+        image.set_alpha(opacity)
+
+    # aligning
+    rect = image.get_rect()
+
+    if v == 't':
+        if h == 'm':
+            rect.midtop = pos[0],pos[1]
+        elif h == 'r':
+            rect.topright = pos[0],pos[1]
+        else:
+            rect.topleft = pos[0],pos[1]
+
+    if v == 'm':
+        if h == 'm':
+            rect.center = pos[0],pos[1]
+        elif h == 'r':
+            rect.midright = pos[0],pos[1]
+        else:
+            rect.midleft = pos[0],pos[1]
+
+    if v == 'b':
+        if h == 'm':
+            rect.midbottom = pos[0],pos[1]
+        elif h == 'r':
+            rect.bottomright = pos[0],pos[1]
+        else:
+            rect.bottomleft = pos[0],pos[1]
+    
+    # drawing
+    surface.blit(image, rect)
 
 
 # TEXT SIZE
