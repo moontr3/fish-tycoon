@@ -259,6 +259,52 @@ class FishParticle:
         )
 
 
+class Water:
+    def __init__(self, size):
+        self.refill(size)
+
+    # regenerates the whole thing
+    def refill(self,size):
+        self.x = size[0]
+        self.y = size[1]
+
+        self.big = random.random()*pi
+        self.small = random.random()*pi
+        self.big_array = []
+        self.small_array = []
+        self.big_speed = random.random()*2+10
+        self.small_speed = random.random()+5
+
+        for i in range(self.x):
+            self.big_array.append(sin(self.big/96)*3)
+            self.big += self.big_speed
+            self.small_array.append(sin(self.small/69)*2)
+            self.small += self.small_speed
+
+    def update(self):
+        # big waves
+        self.big_array.pop(0)
+        self.big_array.append(sin(self.big/96)*3)
+        self.big += self.big_speed
+
+        # small faster waves
+        for i in range(2):
+            self.small_array.pop(0)
+            self.small_array.append(sin(self.small/69)*2)
+            self.small += self.small_speed
+
+    def draw(self):
+        # calculating points
+        points = [self.small_array[i]+self.big_array[i] for i in range(self.x)]
+        draw_points = [(index, i+85) for index, i in enumerate(points)]
+        poly_points = draw_points+[(windowx, 0), (0,0)]
+        
+        # drawing
+        screen.fill((0,100,150))
+        pg.draw.polygon(screen, (90,180,240), poly_points)
+        pg.draw.aalines(screen, (255,255,255), False, draw_points)
+
+
 class Game:
     def __init__(self):
         self.spawn_speed = 300
@@ -266,17 +312,25 @@ class Game:
         self.boid_size_boost = 1
 
         self.fish = []
+        self.water = Water((windowx, windowy))
         self.boid_size = 0
         self.spawn_after = self.spawn_speed
         self.fx = []
 
+        self.bin_opened = False
+        self.menu_opened = False
+        self.paused = False
+
         self.dragging = False
         self.stopped = False
 
+    # adds the effect (particles and all that stuff)
     def add_fx(self, fx):
         self.fx.append(fx)
 
+    # updates the game
     def update(self):
+        # boid spawning
         self.spawn_after -= 1
         if self.spawn_after <= 0:
             self.type = choose_type()
@@ -289,6 +343,7 @@ class Game:
             self.position = random.random()
             self.flip = bool(random.randint(0,1))
 
+        # individual fish from the boid spawning
         if self.boid_size > 0:
             self.fish_spawn_time -= 1
             if self.fish_spawn_time <= 0:
@@ -299,7 +354,11 @@ class Game:
                 self.fish.append(Fish(self.position, self.flip, self.type))
                 self.boid_size -= 1
 
+        # updating game
         if not self.stopped:
+            self.water.update()
+
+            # updating fish
             out = []
             for i in self.fish:
                 i.update()
@@ -307,6 +366,7 @@ class Game:
                     out.append(i)
             self.fish = out
 
+            # updating effects
             out = []
             for i in self.fx:
                 i.update()
@@ -314,10 +374,13 @@ class Game:
                     out.append(i)
             self.fx = out
 
+    # draws the game
     def draw(self):
+        self.water.draw()
+        # fish
         for i in self.fish:
             i.draw()
-        
+        # effects
         for i in self.fx:
             i.draw()
 
@@ -349,8 +412,7 @@ while running:
     mouse_moved = pg.mouse.get_rel()
     lmb_down = False
     lmb_up = False
-
-    screen.fill((0,0,0))
+    pressed = []
 
 
 
@@ -379,8 +441,7 @@ while running:
                 lmb_up = True
 
         if event.type == pg.KEYDOWN:
-            if event.key == pg.K_ESCAPE:
-                game.stopped = not game.stopped
+            pressed.append(event.key)
 
 
 
