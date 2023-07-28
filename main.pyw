@@ -71,11 +71,12 @@ def off_tutorial():
     global tutorial
     tutorial = False
 
-def choose_type(shine=False):
+def choose_type(level=1, shine=False):
     fishes = []
+    level -= 1
     for i in fish:
         if (not shine) or (shine and i.stars >= 2):
-            for j in range(i.rareness):
+            for j in range(i.rareness+(i.rareness_increase*level)):
                 fishes.append(i)
     return random.choice(fishes)
 
@@ -86,6 +87,7 @@ def add_fish_p(fx):
 def catch(type):
     game.inventory.append(type)
     game.bin_scale = 1.0
+    game.level.add(random.randint([5,20,75][type.stars-1], [10,30,100][type.stars-1]))
 
 def capacity_remaining(count_fp=True):
     return game.capacity - (len(game.inventory)+(len(game.fish_p) if count_fp else 0))
@@ -100,6 +102,29 @@ load_locale(locale)
 
 
 # app classes
+
+class LevelManager:
+    def __init__(self):
+        self.xp = 0
+        self.update_level()
+
+    def update_level(self):
+        self.level = 1
+        self.total_level_xp = 50
+        self.level_xp = self.xp
+        while self.level_xp > self.total_level_xp:
+            self.level += 1
+            self.level_xp -= self.total_level_xp
+            self.total_level_xp += 25
+        self.percentage = self.level_xp/self.total_level_xp
+
+    def add(self, xp):
+        self.xp += xp
+        self.update_level()
+    
+    def draw(self):
+        draw.text(f'{int(self.percentage*100)}%, level {self.level}', (halfx,0), h='m')
+
 
 class BtmBrButton:
     def __init__(self, image, name, index, callback):
@@ -154,7 +179,7 @@ class FishType:
         self.size = size
         self.image = image
         self.rareness = rareness
-        self.rareness_decrease = rareness_increase
+        self.rareness_increase = rareness_increase
         self.boid_min = boid_size[0]
         self.boid_max = boid_size[1]
         self.cost = cost
@@ -392,6 +417,7 @@ class Game:
         self.inventory = []
         self.dict_inv = {}
         self.capacity = 5
+        self.level = LevelManager()
 
         self.buttons = [
             BtmBrButton('inventory.png', 'inventory',0,self.regen_dict_inv),
@@ -459,13 +485,16 @@ class Game:
         for i in self.buttons:
             i.draw()
 
+        # xp level
+        self.level.draw()
+
     # updates the game
     def update(self):
         old_inv = self.inventory
         # boid spawning
         self.spawn_after -= 1
         if self.spawn_after <= 0:
-            self.type = choose_type()
+            self.type = choose_type(level=self.level.level)
             self.boid_size = random.randint(
                 int(self.type.boid_min*self.boid_size_boost),
                 int(self.type.boid_max*self.boid_size_boost),
@@ -524,6 +553,48 @@ class Game:
         self.draw_gui()
 
 
+class LoadingScreen:
+    def __init__(self):
+        self.frame = 0
+        self.key = 0
+        self.alpha = 0
+        self.surface = pg.Surface((windowx,windowy))
+
+    def update_alpha(self):
+        self.alpha = self.key*5 if self.key < 51 else min(255, (300-self.key)*5)
+
+    def update(self):
+        # updating frames
+        self.key += 1
+        if self.key > 300\
+            or (lmb_down or len(pressed)) != 0: # pressed
+                self.key = 0
+                self.frame += 1
+                if self.frame > 1:
+                    global game
+                    game = Game()
+
+        # other things
+        self.update_alpha()
+
+    def draw(self):
+        screen.fill((0,0,0))
+
+        # 1st frame
+        if self.frame == 0:
+            draw.text('first')
+
+        # 2nd frame
+        elif self.frame == 1:
+            draw.text('second')
+
+        # dimming screen
+        if self.alpha < 255:
+            a = 255-self.alpha
+            self.surface.set_alpha(a)
+            screen.blit(self.surface, (0,0))
+
+
 # preparing
 
 def load_game():
@@ -533,7 +604,7 @@ def load_game():
     fish = [FishType(i, **data[i]) for i in data]
 
 load_game()
-game = Game()
+game = LoadingScreen()
 
 
 # main loop
