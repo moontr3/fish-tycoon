@@ -1,26 +1,56 @@
 {
-    "cod": {
-        "size": 65,
-        "image": "cod.png",
-        "boid_size": [1,2],
-        "rareness": 50,
-        "rareness_increase": 1,
-        "bad": false
-    },
     "carp": {
         "size": 50,
         "image": "carp.png",
         "boid_size": [1,3],
-        "rareness": 300,
-        "rareness_increase": 0,
-        "bad": false
+        "rareness": 500,
+        "rareness_increase": -1,
+        "cost": 4,
+        "stars": 1
     },
-    "test": {
-        "size": 50,
+    "cod": {
+        "size": 65,
         "image": "cod.png",
-        "boid_size": [1,3],
-        "rareness": -5,
-        "rareness_increase": 0,
-        "bad": false
+        "boid_size": [1,2],
+        "rareness": 100,
+        "rareness_increase": 1,
+        "cost": 10,
+        "stars": 1
+    },
+    "trout": {
+        "size": 45,
+        "image": "trout.png",
+        "boid_size": [1,1],
+        "rareness": 50,
+        "rareness_increase": 1,
+        "cost": 15,
+        "stars": 1
+    },
+    "salmon": {
+        "size": 70,
+        "image": "salmon.png",
+        "boid_size": [1,2],
+        "rareness": 10,
+        "rareness_increase": 2,
+        "cost": 50,
+        "stars": 2
+    },
+    "tuna": {
+        "size": 80,
+        "image": "tuna.png",
+        "boid_size": [1,4],
+        "rareness": 5,
+        "rareness_increase": 3,
+        "cost": 70,
+        "stars": 2
+    },
+    "gold-fish": {
+        "size": 30,
+        "image": "gold_fish.png",
+        "boid_size": [1,1],
+        "rareness": 1,
+        "rareness_increase": 3,
+        "cost": 500,
+        "stars": 3
     }
 }

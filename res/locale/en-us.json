@@ -1,7 +1,16 @@
 {
     "tutorial-1": "Grab the fish by holding LMB",
     "tutorial-2": "Bring the fish to the surface",
+    "full-bin": "Your inventory is full!",
+    "discovered": "Discovered:",
+    "shine": "Shine",
+    "inventory": "Inventory",
+    "settings": "Settings",
 
+    "fish-carp": "Carp",
     "fish-cod": "Cod",
-    "fish-carp": "Carp"
+    "fish-trout": "Trout",
+    "fish-salmon": "Salmon",
+    "fish-tuna": "Tuna",
+    "fish-gold-fish": "Gold fish"
 }

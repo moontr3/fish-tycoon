@@ -71,16 +71,24 @@ def off_tutorial():
     global tutorial
     tutorial = False
 
-def choose_type():
+def choose_type(shine=False):
     fishes = []
     for i in fish:
-        for j in range(i.rareness):
-            fishes.append(i)
+        if (not shine) or (shine and i.stars >= 2):
+            for j in range(i.rareness):
+                fishes.append(i)
     return random.choice(fishes)
 
 
-def add_fx(fx):
-    game.add_fx(fx)
+def add_fish_p(fx):
+    game.add_fish_p(fx)
+
+def catch(type):
+    game.inventory.append(type)
+    game.bin_scale = 1.0
+
+def capacity_remaining(count_fp=True):
+    return game.capacity - (len(game.inventory)+(len(game.fish_p) if count_fp else 0))
 
 
 def load_locale(locale):
@@ -93,8 +101,55 @@ load_locale(locale)
 
 # app classes
 
+class BtmBrButton:
+    def __init__(self, image, name, index, callback):
+        self.image = image
+        self.name = name
+        self.callback = callback
+        self.pressed = False
+        self.rect = self.get_rect(index)
+        self.hovered = False
+        self.index = index
+        self.key = 0.0
+        self.pressed = False
+
+    def get_rect(self, index):
+        rect = pg.Rect(0,0, 48,48)
+        rect.center = (40+index*65, windowy-40)
+        return rect
+
+    def draw(self):
+        # text
+        if self.key > 0.0:
+            opacity_ease = easing.QuadEaseOut(0,255,1).ease(self.key)
+            offset_ease = easing.QuadEaseOut(0,20,1).ease(self.key)
+            draw.text(
+                lang[self.name], (self.rect.center[0] if self.index != 0 else 15, self.rect.top-offset_ease),
+                size=19, h='m' if self.index != 0 else 'l', v='b', opacity=int(opacity_ease)
+            )
+        else:
+            offset_ease = 0
+        # image
+        draw.image(self.image, (self.rect.centerx, self.rect.centery-offset_ease/3), h='m', v='m')
+
+    def update(self):
+        # hovering
+        self.hovered = self.rect.collidepoint(mouse_pos)
+        if self.hovered:
+            if self.key < 1.0:
+                self.key += 0.1
+        elif self.key > 0.0:
+            self.key -= 0.1
+
+        # pressing
+        if lmb_down and self.hovered:
+            self.pressed = True
+        if not self.pressed and (not self.hovered or lmb_up):
+            self.pressed = False
+
+
 class FishType:
-    def __init__(self, key, size, image, rareness, rareness_increase, boid_size, bad):
+    def __init__(self, key, size, image, rareness, rareness_increase, boid_size, cost, stars):
         self.key = key
         self.size = size
         self.image = image
@@ -102,6 +157,8 @@ class FishType:
         self.rareness_decrease = rareness_increase
         self.boid_min = boid_size[0]
         self.boid_max = boid_size[1]
+        self.cost = cost
+        self.stars = stars
 
 
 class Fish:
@@ -171,7 +228,7 @@ class Fish:
 
         # checking if we catched the fish
         if self.removable and self.y < 100:
-            add_fx(FishParticle((self.x, self.y), self.image, self.size, self.flip))
+            add_fish_p(FishParticle(self.type, (self.x, self.y), self.image, self.size, self.flip))
 
         # updates the position
         self.sin += self.sin_speed
@@ -179,13 +236,14 @@ class Fish:
 
         # starting dragging
         hovered = self.rect.collidepoint(mouse_pos)
-        if hovered and lmb_down and not get_dragging():
-            self.dragging = True
-            self.sin = 0
-            set_dragging()
-            if self.tutorial and self.step == 1:
-                self.step = 2
-                self.text_opacity = 0.0
+        if hovered and lmb_down and not get_dragging()\
+            and capacity_remaining() > 0:
+                self.dragging = True
+                self.sin = 0
+                set_dragging()
+                if self.tutorial and self.step == 1:
+                    self.step = 2
+                    self.text_opacity = 0.0
 
         # dragging the fish
         if self.dragging:
@@ -225,7 +283,8 @@ class Fish:
 
 
 class FishParticle:
-    def __init__(self, pos, image, size, flip):
+    def __init__(self, type, pos, image, size, flip):
+        self.type = type
         self.flip = flip
         self.size = size
         self.image = image
@@ -244,6 +303,7 @@ class FishParticle:
         self.key += self.vel
         if self.key >= 1.0:
             self.removable = True
+            catch(self.type)
 
         # position and sinewave and all that stuff
         self.sin = sin(self.key*pi)
@@ -260,49 +320,58 @@ class FishParticle:
 
 
 class Water:
-    def __init__(self, size):
+    def __init__(self, size, still):
+        self.still = still
         self.refill(size)
 
     # regenerates the whole thing
     def refill(self,size):
-        self.x = size[0]
-        self.y = size[1]
+        if not self.still:
+            self.x = size[0]
+            self.y = size[1]
 
-        self.big = random.random()*pi
-        self.small = random.random()*pi
-        self.big_array = []
-        self.small_array = []
-        self.big_speed = random.random()*2+10
-        self.small_speed = random.random()+5
+            self.big = random.random()*pi
+            self.small = random.random()*pi
+            self.big_array = []
+            self.small_array = []
+            self.big_speed = random.random()*2+10
+            self.small_speed = random.random()+5
 
-        for i in range(self.x):
-            self.big_array.append(sin(self.big/96)*3)
-            self.big += self.big_speed
-            self.small_array.append(sin(self.small/69)*2)
-            self.small += self.small_speed
+            for i in range(self.x):
+                self.big_array.append(sin(self.big/96)*3)
+                self.big += self.big_speed
+                self.small_array.append(sin(self.small/69)*2)
+                self.small += self.small_speed
 
     def update(self):
-        # big waves
-        self.big_array.pop(0)
-        self.big_array.append(sin(self.big/96)*3)
-        self.big += self.big_speed
+        if not self.still:
+            # big waves
+            self.big_array.pop(0)
+            self.big_array.append(sin(self.big/96)*3)
+            self.big += self.big_speed
 
-        # small faster waves
-        for i in range(2):
-            self.small_array.pop(0)
-            self.small_array.append(sin(self.small/69)*2)
-            self.small += self.small_speed
+            # small faster waves
+            for i in range(2):
+                self.small_array.pop(0)
+                self.small_array.append(sin(self.small/69)*2)
+                self.small += self.small_speed
 
     def draw(self):
-        # calculating points
-        points = [self.small_array[i]+self.big_array[i] for i in range(self.x)]
-        draw_points = [(index, i+85) for index, i in enumerate(points)]
-        poly_points = draw_points+[(windowx, 0), (0,0)]
-        
-        # drawing
         screen.fill((0,100,150))
-        pg.draw.polygon(screen, (90,180,240), poly_points)
-        pg.draw.aalines(screen, (255,255,255), False, draw_points)
+
+        if not self.still:
+            # calculating points
+            points = [self.small_array[i]+self.big_array[i] for i in range(self.x)]
+            draw_points = [(index, i+85) for index, i in enumerate(points)]
+            poly_points = draw_points+[(windowx, 0), (0,0)]
+            
+            # drawing
+            pg.draw.polygon(screen, (90,180,240), poly_points)
+            pg.draw.aalines(screen, (255,255,255), False, draw_points)
+        else:
+            # still water
+            pg.draw.rect(screen, (90,180,240), pg.Rect(0,0,windowx, 80))
+            pg.draw.line(screen, (255,255,255), (0,80), (windowx,80))
 
 
 class Game:
@@ -312,23 +381,54 @@ class Game:
         self.boid_size_boost = 1
 
         self.fish = []
-        self.water = Water((windowx, windowy))
+        self.water = Water((windowx, windowy), False)
         self.boid_size = 0
         self.spawn_after = self.spawn_speed
-        self.fx = []
+        self.fish_p = []
 
         self.balance = 0
+        self.bin_scale = 0.0
+        self.full_inv_appeaeance = 0.0
+        self.inventory = []
+        self.dict_inv = {}
+        self.capacity = 5
 
-        self.bin_opened = False
-        self.menu_opened = False
-        self.paused = False
-
+        self.buttons = [
+            BtmBrButton('inventory.png', 'inventory',0,self.regen_dict_inv),
+            BtmBrButton('shine_ball.png', 'shine',1,self.regen_dict_inv),
+            BtmBrButton('settings.png', 'settings',2,self.regen_dict_inv),
+        ]
+        self.overlay = None
         self.dragging = False
-        self.stopped = False
 
     # adds the effect (particles and all that stuff)
-    def add_fx(self, fx):
-        self.fx.append(fx)
+    def add_fish_p(self, fx):
+        self.fish_p.append(fx)
+
+    # regenerates the dict_inv
+    def regen_dict_inv(self):
+        counted = []
+        for i in self.inventory:
+            if i.key not in counted:
+                counted[i.key] = 0
+            counted[i.key] += 1
+
+    # updates the gui
+    def update_gui(self):
+        # bin animation
+        if self.bin_scale > 0.0:
+            self.bin_scale -= 0.04
+
+        # full inventory notification
+        if capacity_remaining() <= 0:
+            if self.full_inv_appeaeance < 1.0:
+                self.full_inv_appeaeance += 0.02
+        elif self.full_inv_appeaeance > 0.0:
+            self.full_inv_appeaeance -= 0.02
+
+        # buttons
+        for i in self.buttons:
+            i.update()
 
     # draws the gui
     def draw_gui(self):
@@ -336,8 +436,32 @@ class Game:
         draw.image('coin.png', (40,40), (32,32), h='m', v='m')
         draw.text(str(self.balance), (70,40), size=26, v='m')
 
+        # bin
+        if self.bin_scale > 0.0:
+            size = 32+sin(self.bin_scale*pi)*10
+        else:
+            size = 32
+        draw.image('bin.png', (windowx-40,40), (size,size), h='m', v='m')
+        size = windowx-70
+        size -= draw.text(str(self.capacity), (size,40), size=18, h='r', v='m')[0]
+        size -= draw.text(f'/', (size,40), size=22, h='r', v='m')[0]+1
+        draw.text(str(len(self.inventory)), (size,40), size=26, h='r', v='m')
+
+        # full inventory notification
+        if self.full_inv_appeaeance > 0.0:
+            ease = easing.ExponentialEaseOut(0,50,1).ease(self.full_inv_appeaeance)
+            size = draw.get_text_size(lang['full-bin'])[0]
+            rect = pg.Rect(halfx-size/2-15,windowy-ease,size+30,40)
+            pg.draw.rect(screen, (200,50,50), rect, 0, 7)
+            draw.text(lang['full-bin'], rect.center, h='m', v='m')
+
+        # buttons
+        for i in self.buttons:
+            i.draw()
+
     # updates the game
     def update(self):
+        old_inv = self.inventory
         # boid spawning
         self.spawn_after -= 1
         if self.spawn_after <= 0:
@@ -363,7 +487,7 @@ class Game:
                 self.boid_size -= 1
 
         # updating game
-        if not self.stopped:
+        if self.overlay == None:
             self.water.update()
 
             # updating fish
@@ -376,11 +500,17 @@ class Game:
 
             # updating effects
             out = []
-            for i in self.fx:
+            for i in self.fish_p:
                 i.update()
                 if not i.removable:
                     out.append(i)
-            self.fx = out
+            self.fish_p = out
+
+            self.update_gui()
+
+        # updating inventory
+        if old_inv != self.inventory:
+            self.regen_dict_inv()
 
     # draws the game
     def draw(self):
@@ -389,19 +519,20 @@ class Game:
         for i in self.fish:
             i.draw()
         # effects
-        for i in self.fx:
+        for i in self.fish_p:
             i.draw()
         self.draw_gui()
 
 
 # preparing
 
-def load_fish():
+def load_game():
+    # fish
     global fish
     data = read_json('res/json/fish.json')
     fish = [FishType(i, **data[i]) for i in data]
 
-load_fish()
+load_game()
 game = Game()
 
 
