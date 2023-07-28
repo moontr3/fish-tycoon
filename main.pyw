@@ -95,7 +95,7 @@ def load_locale(locale):
     global lang
     lang = read_json(f'res/locale/{locale}.json',)
 
-locale = 'ru-ru'
+locale = 'en-us'
 load_locale(locale)
 
 
