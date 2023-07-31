@@ -2,20 +2,26 @@
 
 import pygame as pg
 import os
+import draw
+import random
+import json
+
 try:
     import easing_functions as easing
 except:
     os.system('pip3 install easing-functions')
     import easing_functions as easing
-import draw
-import random
-from numpy import sin, pi
-import json
+
+try:
+    from numpy import sin, pi
+except:
+    os.system('pip3 install numpy')
+    from numpy import sin, pi
 
 pg.init()
 
 # game size
-windowx = 1280 
+windowx = 1280
 windowy = 720
 # window size, changes on resize
 screenx = 1280
@@ -87,7 +93,8 @@ def add_fish_p(fx):
 def catch(type):
     game.inventory.append(type)
     game.bin_scale = 1.0
-    game.level.add(random.randint([5,20,75][type.stars-1], [10,30,100][type.stars-1]))
+    game.level.add(random.randint([5,50,150][type.stars-1], [10,80,200][type.stars-1]))
+    game.regen_dict_inv()
 
 def capacity_remaining(count_fp=True):
     return game.capacity - (len(game.inventory)+(len(game.fish_p) if count_fp else 0))
@@ -106,24 +113,101 @@ load_locale(locale)
 class LevelManager:
     def __init__(self):
         self.xp = 0
+        self.vis_percentage = 0.0
+        self.level = 1
         self.update_level()
+        self.level_up = False
+        self.level_up_key = 0.0
+        self.old_level = 1
+        self.level_up_end_key = 0.0
 
     def update_level(self):
+        # percentage and all that stuff
+        old_lvl = self.level
         self.level = 1
         self.total_level_xp = 50
         self.level_xp = self.xp
         while self.level_xp > self.total_level_xp:
             self.level += 1
             self.level_xp -= self.total_level_xp
-            self.total_level_xp += 25
+            self.total_level_xp += 30
         self.percentage = self.level_xp/self.total_level_xp
+        
+        # level up
+        if self.level > old_lvl:
+            self.level_up = True
+            self.old_level = old_lvl
 
+    # add xp
     def add(self, xp):
         self.xp += xp
         self.update_level()
     
     def draw(self):
-        draw.text(f'{int(self.percentage*100)}%, level {self.level}', (halfx,0), h='m')
+        # shaking
+        if self.level_up_key > 0.0:
+            xoffset = random.randint(-int(self.level_up_key*6), int(self.level_up_key*6))
+            yoffset = random.randint(-int(self.level_up_key*3), int(self.level_up_key*3))
+        elif self.level_up_end_key > 0.0:
+            xoffset = random.randint(-1,1)
+            if random.random() > self.level_up_end_key:
+                xoffset = 0
+            yoffset = 0
+        else:
+            xoffset = 0
+            yoffset = 0
+
+        # bar
+        bar_rect = pg.Rect(halfx-200+xoffset, 25+yoffset, 400, 8)
+        cur_rect = pg.Rect(halfx-200+xoffset, 25+yoffset, self.vis_percentage*392+8, 8)
+        pg.draw.rect(screen, (50,100,130), ((bar_rect.x, bar_rect.y+1), bar_rect.size), 0, 4)
+        pg.draw.rect(screen, (80,160,210), bar_rect, 0, 4)
+        pg.draw.rect(screen, (255,230,70), cur_rect, 0, 4)
+
+        # text
+        offset = halfx-(
+            draw.get_text_size(f'{lang["level"]} {self.old_level}', 18)[0]+\
+            draw.get_text_size(f'{int(self.vis_percentage*100)}%', 16)[0]
+        )/2-5
+        offset += draw.text(f'{lang["level"]} {self.old_level}', (offset, 40), size=18)[0]+10
+        draw.text(f'{int(self.vis_percentage*100)}%', (offset, 41), size=16, opacity=200)
+
+        # level up glow
+        if self.level_up_key > 0:
+            ease = easing.QuinticEaseIn(0,255,1).ease(self.level_up_key)
+            draw.image('glow.png', bar_rect.center, (500,40), h='m', v='m', opacity=self.level_up_key*255)
+            draw.image('glow.png', bar_rect.center, (600,80), h='m', v='m', opacity=ease)
+        if self.level_up_end_key > 0:
+            ease = easing.ExponentialEaseIn(0,255,1).ease(self.level_up_end_key)
+            draw.image('glow.png', bar_rect.center, (500,40), h='m', v='m', opacity=ease)
+            draw.image('glow.png', bar_rect.center, (600,80), h='m', v='m', opacity=ease)
+        
+            # level up text
+            text_in_ease = easing.ExponentialEaseIn(1,0,1).ease(self.level_up_end_key)
+            text_out_ease = easing.ExponentialEaseOut(0,1,1).ease(self.level_up_end_key)
+            draw.text(str(self.level), (halfx, 50+text_in_ease*30), size=18+int(text_in_ease*48), opacity=text_out_ease*255, h='m')
+            draw.text(lang['level_up'], (halfx, 70+text_in_ease*80), size=6+int(text_in_ease*16), opacity=text_out_ease*255, h='m')
+
+    def update(self):
+        # animation
+        if self.level == self.old_level:
+            self.vis_percentage += (self.percentage-self.vis_percentage)/7
+        else:
+            self.vis_percentage += (1.0-self.vis_percentage)/7
+        
+        # level up animation
+        if self.level != self.old_level:
+            if self.level_up_key < 1.0:
+                self.level_up_key += 0.02
+            else:
+                self.level_up = False
+                self.level_up_key = 0.0
+                self.level_up_end_key = 1.0
+                self.old_level = self.level
+                self.vis_percentage = 0.0
+
+        if self.level_up_end_key > 0.0:
+            self.level_up_end_key -= 0.01
 
 
 class BtmBrButton:
@@ -167,9 +251,12 @@ class BtmBrButton:
             self.key -= 0.1
 
         # pressing
+        if self.hovered and lmb_up:
+            self.callback()
+
         if lmb_down and self.hovered:
             self.pressed = True
-        if not self.pressed and (not self.hovered or lmb_up):
+        if self.pressed and (not self.hovered or lmb_up):
             self.pressed = False
 
 
@@ -355,8 +442,8 @@ class Water:
             self.x = size[0]
             self.y = size[1]
 
-            self.big = random.random()*pi
-            self.small = random.random()*pi
+            self.big = pi
+            self.small = 0
             self.big_array = []
             self.small_array = []
             self.big_speed = random.random()*2+10
@@ -422,10 +509,14 @@ class Game:
         self.buttons = [
             BtmBrButton('inventory.png', 'inventory',0,self.regen_dict_inv),
             BtmBrButton('shine_ball.png', 'shine',1,self.regen_dict_inv),
-            BtmBrButton('settings.png', 'settings',2,self.regen_dict_inv),
+            BtmBrButton('up.png', 'upgrade',2,self.regen_dict_inv),
+            BtmBrButton('settings.png', 'settings',3,self.regen_dict_inv),
         ]
         self.overlay = None
         self.dragging = False
+
+        self.start_dim = 1.0
+        self.dim_surface = pg.Surface((windowx,windowy))
 
     # adds the effect (particles and all that stuff)
     def add_fish_p(self, fx):
@@ -433,7 +524,7 @@ class Game:
 
     # regenerates the dict_inv
     def regen_dict_inv(self):
-        counted = []
+        counted = {}
         for i in self.inventory:
             if i.key not in counted:
                 counted[i.key] = 0
@@ -455,6 +546,9 @@ class Game:
         # buttons
         for i in self.buttons:
             i.update()
+
+        # xp bar
+        self.level.update()
 
     # draws the gui
     def draw_gui(self):
@@ -541,6 +635,10 @@ class Game:
         if old_inv != self.inventory:
             self.regen_dict_inv()
 
+        # dimming screen when started
+        if self.start_dim > 0.0:
+            self.start_dim -= 0.01
+
     # draws the game
     def draw(self):
         self.water.draw()
@@ -552,6 +650,12 @@ class Game:
             i.draw()
         self.draw_gui()
 
+        # dimming
+        if self.start_dim > 0.0:
+            self.dim_surface.fill((255,255,255))
+            self.dim_surface.set_alpha(self.start_dim*255)
+            screen.blit(self.dim_surface, (0,0))
+
 
 class LoadingScreen:
     def __init__(self):
@@ -559,20 +663,29 @@ class LoadingScreen:
         self.key = 0
         self.alpha = 0
         self.surface = pg.Surface((windowx,windowy))
+        self.switch_key = 0.0
+        self.switching = False
 
     def update_alpha(self):
         self.alpha = self.key*5 if self.key < 51 else min(255, (300-self.key)*5)
 
     def update(self):
         # updating frames
-        self.key += 1
-        if self.key > 300\
-            or (lmb_down or len(pressed)) != 0: # pressed
+        if (self.frame != 1) or (self.frame == 1 and self.key < 51):
+            self.key += 1
+        if self.key > 300 or lmb_up: # pressed
+            if self.frame >= 1:
+                self.switching = True
+            else:
                 self.key = 0
                 self.frame += 1
-                if self.frame > 1:
-                    global game
-                    game = Game()
+
+        # switching to the game
+        if self.switching:
+            self.switch_key += 0.02
+        if self.switch_key >= 1.0:
+            global game
+            game = Game()
 
         # other things
         self.update_alpha()
@@ -582,16 +695,26 @@ class LoadingScreen:
 
         # 1st frame
         if self.frame == 0:
-            draw.text('first')
+            draw.text('Attention!', (halfx,halfy-30), (255,255,255), size=40, h='m', v='m')
+            draw.text('Loading screen!!!!', (halfx,halfy+30), (200,200,200), size=24, h='m', v='m')
 
         # 2nd frame
         elif self.frame == 1:
-            draw.text('second')
+            draw.text('кабдыщщщ', (halfx,halfy-30), (255,60,60), size=40, h='m', v='m')
+            draw.text(lang['click_to_start'], (halfx,windowy-50), size=20, h='m', v='m')
 
         # dimming screen
-        if self.alpha < 255:
+        if self.alpha < 255 and self.switch_key <= 0.0:
             a = 255-self.alpha
             self.surface.set_alpha(a)
+            screen.blit(self.surface, (0,0))
+
+        if self.switch_key > 0.0:
+            ease = easing.ExponentialEaseIn(0,1,1).ease(self.switch_key)
+            size = (50+ease*500+self.switch_key*500,50+ease*500+self.switch_key*500)
+            draw.image('sparkle.png', (halfx,halfy), size, 'm', 'm', ease*100, ease*255, temp=True)
+            self.surface.fill((255,255,255))
+            self.surface.set_alpha(ease*255)
             screen.blit(self.surface, (0,0))
 
 

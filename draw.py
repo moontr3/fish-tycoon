@@ -95,7 +95,8 @@ def image(
         rotation=0,
         opacity=255,
         flip=False,
-        surface=None
+        surface=None,
+        temp=False
     ):
 
     # surface
@@ -103,13 +104,17 @@ def image(
         surface = def_surface
 
     # getting font
+    if f'res/images/{image}' not in images:
+        images[f'res/images/{image}'] = {'base': pg.image.load(f'res/images/{image}')}
     try:
         image = images[f'res/images/{image}'][size[0]][size[1]].copy()
     except:
-        images[f'res/images/{image}'] = {}
-        images[f'res/images/{image}'][size[0]] = {}
-        images[f'res/images/{image}'][size[0]][size[1]] = pg.transform.smoothscale(pg.image.load(f'res/images/{image}'), size)
-        image = images[f'res/images/{image}'][size[0]][size[1]].copy()
+        if not temp:
+            images[f'res/images/{image}'][size[0]] = {}
+            images[f'res/images/{image}'][size[0]][size[1]] = pg.transform.smoothscale(images[f'res/images/{image}']['base'], size)
+            image = images[f'res/images/{image}'][size[0]][size[1]].copy()
+        else:
+            image = pg.transform.smoothscale(images[f'res/images/{image}']['base'], size)
 
     # flipping
     if flip:
