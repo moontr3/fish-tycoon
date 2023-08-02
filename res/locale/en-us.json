@@ -1,6 +1,6 @@
 {
-    "tutorial-1": "Grab the fish by holding LMB",
-    "tutorial-2": "Bring the fish to the surface",
+    "tutorial-1": "Grab the fish with the tip of the hook",
+    "tutorial-2": "Drag the fish to the surface",
     "full-bin": "Your inventory is full!",
     "discovered": "Discovered:",
     "shine": "Shine",
@@ -16,5 +16,6 @@
     "fish-trout": "Trout",
     "fish-salmon": "Salmon",
     "fish-tuna": "Tuna",
+    "fish-fugu": "Fugu",
     "fish-gold-fish": "Gold fish"
 }

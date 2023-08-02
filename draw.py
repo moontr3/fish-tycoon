@@ -96,7 +96,8 @@ def image(
         opacity=255,
         flip=False,
         surface=None,
-        temp=False
+        temp=False,
+        smooth=True
     ):
 
     # surface
@@ -111,7 +112,10 @@ def image(
     except:
         if not temp:
             images[f'res/images/{image}'][size[0]] = {}
-            images[f'res/images/{image}'][size[0]][size[1]] = pg.transform.smoothscale(images[f'res/images/{image}']['base'], size)
+            if smooth:
+                images[f'res/images/{image}'][size[0]][size[1]] = pg.transform.smoothscale(images[f'res/images/{image}']['base'], size)
+            else:
+                images[f'res/images/{image}'][size[0]][size[1]] = pg.transform.scale(images[f'res/images/{image}']['base'], size)
             image = images[f'res/images/{image}'][size[0]][size[1]].copy()
         else:
             image = pg.transform.smoothscale(images[f'res/images/{image}']['base'], size)

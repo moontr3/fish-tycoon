@@ -32,6 +32,7 @@ fps = 60
 
 window = pg.display.set_mode((screenx,screeny), pg.RESIZABLE)
 screen = pg.Surface((windowx, windowy))
+pg.mouse.set_visible(False)
 running = True
 pg.display.set_caption('caption')
 draw.def_surface = screen
@@ -43,13 +44,16 @@ halfpi = pi/2
 # app variables
 
 tutorial = True
+rod_pos = [0,0]
 
 
 # app functions
 
+# linear interpolation between two one-d points
 def lerp(a, b, t):
     return (1-t)*a + t*b
 
+# linear interpolation between two coordinates in any dimension
 def dlerp(a: tuple, b: tuple, t):
     out = []
     for i in range(min(len(a), len(b))):
@@ -57,59 +61,72 @@ def dlerp(a: tuple, b: tuple, t):
     return out
 
 
+# read unencrypted json
 def read_json(fp):
     with open(fp, encoding='utf-8') as f:
         return json.load(f)
 
+# write unencrypted json
 def write_json(fp, data):
     with open(fp, 'w', encoding='utf-8') as f:
         json.dump(data, fp)
-    
 
+
+# game functions
+
+# enable or disable dragging, used for correct handling of the fish dragging
 def set_dragging(state: bool = True):
     global game
     game.dragging = state
 
+# returns whether the player is currently dragging a fish
 def get_dragging():
     return game.dragging
 
+# disables the tutorial
 def off_tutorial():
     global tutorial
     tutorial = False
 
+
+# returns a random FishType according to the level (the higher the level, the rarer the fish)
 def choose_type(level=1, shine=False):
     fishes = []
     level -= 1
     for i in fish:
         if (not shine) or (shine and i.stars >= 2):
-            for j in range(i.rareness+(i.rareness_increase*level)):
+            for j in range(i.rareness+(i.rareness_increase*(level-1))):
                 fishes.append(i)
     return random.choice(fishes)
 
-
+# adds this flying fish thingie (FishParticle)
 def add_fish_p(fx):
     game.add_fish_p(fx)
 
+# catches a fish and adds it to the inventory
 def catch(type):
     game.inventory.append(type)
     game.bin_scale = 1.0
     game.level.add(random.randint([5,50,150][type.stars-1], [10,80,200][type.stars-1]))
     game.regen_dict_inv()
 
+# returns how much space is left in inventory
+# count_fp == True then FishParticle will also be counted as an item in inventory
 def capacity_remaining(count_fp=True):
     return game.capacity - (len(game.inventory)+(len(game.fish_p) if count_fp else 0))
 
-
+# loads a language and applies it
 def load_locale(locale):
     global lang
     lang = read_json(f'res/locale/{locale}.json',)
 
-locale = 'en-us'
+locale = 'ru-ru'
 load_locale(locale)
 
 
 # app classes
 
+# experience manager (displays and handles the xp)
 class LevelManager:
     def __init__(self):
         self.xp = 0
@@ -121,6 +138,8 @@ class LevelManager:
         self.old_level = 1
         self.level_up_end_key = 0.0
 
+    # used to update the variables relating to self.xp
+    # to add xp use self.add(amount)
     def update_level(self):
         # percentage and all that stuff
         old_lvl = self.level
@@ -210,6 +229,7 @@ class LevelManager:
             self.level_up_end_key -= 0.01
 
 
+# button on the bottom of the screen
 class BtmBrButton:
     def __init__(self, image, name, index, callback):
         self.image = image
@@ -260,6 +280,7 @@ class BtmBrButton:
             self.pressed = False
 
 
+# fish that gets stored in inventory, gets choosed in a rng and all this
 class FishType:
     def __init__(self, key, size, image, rareness, rareness_increase, boid_size, cost, stars):
         self.key = key
@@ -273,6 +294,7 @@ class FishType:
         self.stars = stars
 
 
+# fish that gets displayed on the screen
 class Fish:
     def __init__(self, pos, flip: bool, fish_type):
         self.flip = flip
@@ -394,6 +416,7 @@ class Fish:
                 v='m', h='r' if self.flip else 'l', opacity=int(opacity_ease))
 
 
+# y know when the fish is flying towards the bin? yep this is it
 class FishParticle:
     def __init__(self, type, pos, image, size, flip):
         self.type = type
@@ -431,6 +454,7 @@ class FishParticle:
         )
 
 
+# game background
 class Water:
     def __init__(self, size, still):
         self.still = still
@@ -486,6 +510,7 @@ class Water:
             pg.draw.line(screen, (255,255,255), (0,80), (windowx,80))
 
 
+# main game with all buttonss, fish and all this
 class Game:
     def __init__(self):
         self.spawn_speed = 300
@@ -514,9 +539,20 @@ class Game:
         ]
         self.overlay = None
         self.dragging = False
+        self.rod_pos = pg.mouse.get_pos()
+        self.rod_offset = self.rod_pos[0]
 
         self.start_dim = 1.0
         self.dim_surface = pg.Surface((windowx,windowy))
+
+        self.play_bg_music()
+
+    # starts playing background music
+    def play_bg_music(self):
+        pg.mixer.music.stop()
+        pg.mixer.music.load('res/sounds/background.wav')
+        pg.mixer.music.set_volume(0.4)
+        pg.mixer.music.play(-1)
 
     # adds the effect (particles and all that stuff)
     def add_fish_p(self, fx):
@@ -582,6 +618,10 @@ class Game:
         # xp level
         self.level.draw()
 
+        # fishing rod
+        draw.image('hook.png', self.rod_pos, (50,80), 'r','m')
+        pg.draw.aaline(screen, (0,0,0), (self.rod_pos[0]-25, self.rod_pos[1]-40), (self.rod_offset-25, -1))
+
     # updates the game
     def update(self):
         old_inv = self.inventory
@@ -631,6 +671,10 @@ class Game:
 
             self.update_gui()
 
+        # updaing fishing rod
+        self.rod_pos = dlerp(self.rod_pos, init_pos, 0.15)
+        self.rod_offset = lerp(self.rod_offset, self.rod_pos[0], 0.4)
+
         # updating inventory
         if old_inv != self.inventory:
             self.regen_dict_inv()
@@ -657,6 +701,7 @@ class Game:
             screen.blit(self.dim_surface, (0,0))
 
 
+# loading screen, doesn't actually load anything but there's a cool animation
 class LoadingScreen:
     def __init__(self):
         self.frame = 0
@@ -695,7 +740,7 @@ class LoadingScreen:
 
         # 1st frame
         if self.frame == 0:
-            draw.text('Attention!', (halfx,halfy-30), (255,255,255), size=40, h='m', v='m')
+            draw.text('', (halfx,halfy-30), (255,255,255), size=40, h='m', v='m')
             draw.text('Loading screen!!!!', (halfx,halfy+30), (200,200,200), size=24, h='m', v='m')
 
         # 2nd frame
@@ -737,21 +782,22 @@ while running:
 ############## INPUT ##############
 
     events = pg.event.get()
-    mouse_pos = pg.mouse.get_pos()
-    mouse_pos = [
-        mouse_pos[0]/screenx*windowx,
-        mouse_pos[1]/screeny*windowy
+    init_pos = pg.mouse.get_pos()
+    init_pos = [
+        init_pos[0]/screenx*windowx,
+        init_pos[1]/screeny*windowy
     ]
     mouse_press = pg.mouse.get_pressed(5)
     mouse_moved = pg.mouse.get_rel()
+    if type(game) == Game:
+        mouse_pos = game.rod_pos
+    else:
+        mouse_pos = init_pos
     lmb_down = False
     lmb_up = False
     pressed = []
 
-
-
-############## PROCESSING EVENTS ##############
-
+    # processing events
     for event in events:
         if event.type == pg.QUIT:
             running = False 
@@ -777,10 +823,7 @@ while running:
         if event.type == pg.KEYDOWN:
             pressed.append(event.key)
 
-
-
-############## UPDATING SCREEN ##############
-
+    # updating screen
     game.update()
     game.draw()
 
