@@ -18,6 +18,12 @@ except:
     os.system('pip3 install numpy')
     from numpy import sin, pi
 
+try:
+    import cryptocode
+except:
+    os.system('pip3 install cryptocode')
+    import cryptocode
+
 pg.init()
 
 # game size
@@ -47,6 +53,7 @@ tutorial = True
 rod_pos = [0,0]
 dfps = 0.0
 show_fps = False
+still_water = False
 
 
 # app functions
@@ -72,6 +79,21 @@ def read_json(fp):
 def write_json(fp, data):
     with open(fp, 'w', encoding='utf-8') as f:
         json.dump(data, fp)
+
+# read encrypted json
+def read(fp):
+    with open(fp, encoding='utf-8') as f:
+        data = f.read()
+        ddata = cryptocode.decrypt(data[8:], data[0:8])
+        return json.loads(ddata)
+    
+# write encrypted json and return the key
+def write(fp, data): 
+    with open(fp, 'w', encoding='utf-8') as f:
+        key = ''.join(random.choices('1234567890qwertyuiopasdfghjklzxcvbnm', k=8))
+        data = key+cryptocode.encrypt(json.dumps(data), key)
+        f.write(data)
+        return key
 
 
 # game functions
@@ -116,6 +138,39 @@ def catch(type):
     game.level.add(random.randint([5,50,150][type.stars-1], [10,80,200][type.stars-1]))
     game.regen_dict_inv()
 
+# sells all fish in inventory
+def sell_all():
+    global game
+    for i in game.dict_inv:
+        amount = game.dict_inv[i]
+        fish_type = dict_fish[i]
+        game.balance += fish_type.cost*amount
+    game.inventory = []
+    game.regen_dict_inv()
+
+# sells one fish or the whole batch
+def sell(key, is_batch=False):
+    global game
+    fish_type = dict_fish[key]
+    # batch selling
+    if is_batch:
+        game.balance += fish_type.cost*game.dict_inv[key]
+        new = []
+        for i in game.inventory:
+            if i.key != key:
+                new.append(i)
+        game.inventory = new
+    # one selling
+    else:
+        for i in game.inventory:
+            if i.key == key:
+                game.balance += fish_type.cost
+                game.inventory.reverse()
+                game.inventory.remove(i)
+                game.inventory.reverse()
+                break
+    game.regen_dict_inv()
+        
 # opens a menu 
 def set_menu(menu):
     global game
@@ -135,12 +190,66 @@ def menu_opened():
     return game.overlay != None
 
 # loads a language and applies it
-def load_locale(locale):
-    global lang
-    lang = read_json(f'res/locale/{locale}.json',)
+def load_locale(code):
+    global lang, locale
+    locale = code
+    lang = read_json(f'res/locale/{code}.json',)
 
-locale = 'ru-ru'
-load_locale(locale)
+# loads a language and applies it
+def change_water(value):
+    global game, still_water
+    still_water = value
+    game.water = Water((windowx,windowy), value)
+
+
+# save the game to the file
+def save():
+    data = {
+        'inv': [i.key for i in game.inventory],
+        'bal': game.balance,
+        'xp': game.level.xp,
+        'still_water': still_water,
+        'lang': locale,
+        'capacity': game.capacity
+    }
+    write('save', data)
+
+# loads the locale from the file
+def fetch_locale():
+    try:
+        data = read('save')
+        load_locale(data['lang'])
+    except Exception as e:
+        load_locale('ru-ru')
+
+# load the game from the file
+def load():
+    try:
+        data = read('save')
+        global tutorial
+        tutorial = False
+        load_locale(data['lang'])
+        change_water(data['still_water'])
+        game.level.add(data['xp'])
+        game.level.update_level()
+        game.level.vis_percentage = game.level.percentage
+        game.level.old_level = game.level.level
+        game.inventory = [dict_fish[i] for i in data['inv']]
+        game.regen_dict_inv()
+        game.balance = data['bal']
+        game.capacity = data['capacity']
+    except Exception as e:
+        load_locale('ru-ru')
+        write('save', {
+            'inv': [],
+            'bal': 0,
+            'xp': 0,
+            'still_water': False,
+            'lang': 'ru-ru',
+            'capacity': 5
+        })
+
+fetch_locale()
 
 
 # app classes
@@ -153,6 +262,7 @@ class Inventory:
         self.inv = {}
         self.prev_len = 0
         self.size = 0
+        self.btn_hovered = False
         self.update_btn_rect(windowy)
 
     def update_btn_rect(self, y):
@@ -198,11 +308,15 @@ class Inventory:
 
             ongoing += 110
 
-        # drawing button
-        pg.draw.rect(screen, (240,230,200) if not (self.btn_hovered and mouse_press[0]) else (200,190,160),self.btn_rect, 0, 14)
-        pg.draw.rect(screen, (150,130,90),self.btn_rect, 2, 14)
-        draw.text(lang['sell-all'], (self.btn_rect.centerx, self.btn_rect.centery-1), (0,0,0), size=14, h='m', v='m')
-        draw.text(lang['sell-one'], (windowx-165, self.btn_rect.centery-1), (200,200,200), size=16, h='r', v='m')
+        if len(self.inv) > 0:
+            # drawing button
+            pg.draw.rect(screen, (240,230,200) if not (self.btn_hovered and mouse_press[0]) else (200,190,160),self.btn_rect, 0, 14)
+            pg.draw.rect(screen, (150,130,90),self.btn_rect, 2, 14)
+            draw.text(lang['sell-all'], (self.btn_rect.centerx, self.btn_rect.centery-1), (0,0,0), size=14, h='m', v='m')
+            draw.text(lang['sell-one' if not keys[pg.K_LSHIFT] else 'sell-batch'], (windowx-165, self.btn_rect.centery-1), (200,200,200), size=16, h='r', v='m')
+        else:
+            # drawing empty inventory label
+            draw.text(lang['empty-inventory'], (halfx, y+110), (50,50,50), size=26, h='m', v='m')
 
     def update(self, y):
         # updating size
@@ -225,13 +339,113 @@ class Inventory:
         self.scroll_offset += self.scroll_vel
         self.scroll_vel /= 1.2
 
-        # selling one
+        # selling one or batch
         ongoing = self.scroll_offset+10
         for i in self.inv:
             rect = pg.Rect(ongoing, y+40, 100, 150)
-            
+            if rect.collidepoint(mouse_pos) and lmb_up:
+                sell(i, keys[pg.K_LSHIFT])
+                break
+            ongoing += 110
+
         # selling all
-        self.btn_hovered = self.btn_rect.collidepoint(mouse_pos)
+        if len(self.inv) > 0:
+            self.btn_hovered = self.btn_rect.collidepoint(mouse_pos)
+            if self.btn_hovered and lmb_up:
+                sell_all()
+        elif self.btn_hovered != False:
+            self.btn_hovered = False
+
+# switch element
+class SwitchElement:
+    def __init__(self, data, image, text):
+        self.data = data
+        self.image = image
+        self.text = text
+
+# switch
+class SettingsSwitch:
+    def __init__(self, elements, text, callback, default_state_var):
+        self.elements = elements
+        self.text = text
+        self.callback = callback
+        cur_index = [i.data for i in self.elements].index(globals()[default_state_var])
+        self.current_element = self.elements[cur_index]
+        self.size = 110
+
+    def next(self):
+        cur_index = [i.data for i in self.elements].index(self.current_element.data)
+        cur_index += 1
+        if cur_index >= len(self.elements):
+            cur_index = 0
+        globals()[self.current_element.data] = self.elements[cur_index].data
+        self.current_element = self.elements[cur_index]
+        self.callback(self.current_element.data)
+
+    def draw(self, pos):
+        rect = pg.Rect(pos, (100,150))
+
+        # bg
+        pg.draw.rect(screen, (240,230,200) if not (rect.collidepoint(mouse_pos) and mouse_press[0]) else (200,190,160),rect, 0, 7)
+        pg.draw.rect(screen, (150,130,90),rect, 2, 7)
+
+        # info
+        draw.text(lang[self.text], (rect.centerx, rect.top+10), (0,0,0), 16, h='m')
+        draw.image(self.current_element.image, rect.center, (80,80), 'm', 'm')
+        draw.text(lang[self.current_element.text], (rect.centerx, rect.bottom-30), (0,0,0), 14, h='m', opacity=170)
+
+    def update(self, pos):
+        rect = pg.Rect(pos, (100,150))
+        hovered = rect.collidepoint(mouse_pos)
+
+        if hovered and lmb_up:
+            self.next()
+
+# settings menu
+class Settings:
+    def __init__(self):
+        self.scroll_offset = 0
+        self.scroll_vel = 0
+        self.items = [
+            SettingsSwitch([
+                SwitchElement('ru-ru', 'ru-ru.png', 'russian'),
+                SwitchElement('en-us', 'en-us.png', 'english'),
+            ], 'language', load_locale, 'locale'),
+            SettingsSwitch([
+                SwitchElement(True, 'still_water.png', 'still-water'),
+                SwitchElement(False, 'wavy_water.png', 'wavy-water'),
+            ], 'water-flow', change_water, 'still_water')
+        ]
+        self.size = max(0, sum([i.size for i in self.items])+10-windowx)
+
+    def draw(self, y):
+        # drawing title
+        size = draw.text(lang['settings'], (10,y+5), size=24)[0]+20
+        
+        # drawing elements
+        ongoing = 10-self.scroll_offset
+        for i in self.items:
+            i.draw((ongoing, y+40))
+            ongoing += i.size
+
+    def update(self, y):
+        # scrolling
+        if mouse_scroll != 0.0:
+            self.scroll_vel -= mouse_scroll*15
+
+        if self.scroll_offset < 0:
+            self.scroll_offset = 0
+        if self.scroll_offset > self.size:
+            self.scroll_offset = self.size
+
+        self.scroll_offset += self.scroll_vel
+        self.scroll_vel /= 1.2
+        
+        # drawing elements
+        ongoing = 10-self.scroll_offset
+        for i in self.items:
+            i.update((ongoing, y+40))
+            ongoing += i.size
 
 
 # experience manager (displays and handles the xp)
@@ -646,7 +860,7 @@ class Game:
             BtmBrButton('inventory.png', 'inventory',0,Inventory),
             BtmBrButton('shine_ball.png', 'shine',1,Inventory),
             BtmBrButton('up.png', 'upgrade',2,Inventory),
-            BtmBrButton('settings.png', 'settings',3,Inventory),
+            BtmBrButton('settings.png', 'settings',3,Settings),
         ]
         self.overlay = None
         self.dragging = False
@@ -874,6 +1088,7 @@ class LoadingScreen:
         if self.switch_key >= 1.0:
             global game
             game = Game()
+            load()
 
         # other things
         self.update_alpha()
@@ -883,8 +1098,11 @@ class LoadingScreen:
 
         # 1st frame
         if self.frame == 0:
-            draw.text('', (halfx,halfy-30), (255,60,60), size=40, h='m', v='m')
-            draw.text('Loading screen!!!!', (halfx,halfy+30), (255,255,255), size=24, h='m', v='m')
+            draw.text(lang['attention'], (halfx,halfy-80), (255,60,60), size=40, h='m', v='m')
+            draw.text(lang['att-desc-1'], (halfx,halfy-25), (255,255,255), size=24, h='m', v='m')
+            draw.text(lang['att-desc-2'], (halfx,halfy+10), (255,255,255), size=24, h='m', v='m')
+            draw.text(lang['att-desc-3'], (halfx,halfy+45), (255,255,255), size=24, h='m', v='m')
+            draw.text(lang['att-desc-4'], (halfx,halfy+80), (255,255,255), size=24, h='m', v='m')
 
         # 2nd frame
         elif self.frame == 1:
@@ -932,6 +1150,7 @@ while running:
     ]
     mouse_press = pg.mouse.get_pressed(5)
     mouse_moved = pg.mouse.get_rel()
+    keys = pg.key.get_pressed()
     mouse_scroll = 0.0
     if type(game) == Game:
         mouse_pos = game.rod_pos
@@ -945,6 +1164,7 @@ while running:
     for event in events:
         if event.type == pg.QUIT:
             running = False 
+            save()
 
         if event.type == pg.VIDEORESIZE:
             # resizing the window (not the screen)

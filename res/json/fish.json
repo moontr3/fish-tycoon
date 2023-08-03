@@ -39,8 +39,8 @@
         "size": 80,
         "image": "tuna.png",
         "boid_size": [1,4],
-        "rareness": 4,
-        "rareness_increase": 4,
+        "rareness": 10,
+        "rareness_increase": 3,
         "cost": 70,
         "stars": 2
     },
@@ -48,8 +48,8 @@
         "size": 50,
         "image": "fugu.png",
         "boid_size": [2,5],
-        "rareness": 3,
-        "rareness_increase": 5,
+        "rareness": 4,
+        "rareness_increase": 4,
         "cost": 200,
         "stars": 3
     },
@@ -58,7 +58,7 @@
         "image": "gold_fish.png",
         "boid_size": [1,1],
         "rareness": 1,
-        "rareness_increase": 6,
+        "rareness_increase": 5,
         "cost": 500,
         "stars": 3
     }
