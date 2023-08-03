@@ -878,7 +878,7 @@ class Game:
     # starts playing background music
     def play_bg_music(self):
         pg.mixer.music.stop()
-        pg.mixer.music.load('res/sounds/background.wav')
+        pg.mixer.music.load('res/sounds/background.mp3')
         pg.mixer.music.set_volume(0.4)
         pg.mixer.music.play(-1)
 
