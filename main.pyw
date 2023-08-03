@@ -45,6 +45,8 @@ halfpi = pi/2
 
 tutorial = True
 rod_pos = [0,0]
+dfps = 0.0
+show_fps = False
 
 
 # app functions
@@ -83,6 +85,10 @@ def set_dragging(state: bool = True):
 def get_dragging():
     return game.dragging
 
+# returns inventory dictionary
+def get_inv():
+    return game.dict_inv
+
 # disables the tutorial
 def off_tutorial():
     global tutorial
@@ -110,10 +116,23 @@ def catch(type):
     game.level.add(random.randint([5,50,150][type.stars-1], [10,80,200][type.stars-1]))
     game.regen_dict_inv()
 
+# opens a menu 
+def set_menu(menu):
+    global game
+    game.overlay = menu()
+
 # returns how much space is left in inventory
 # count_fp == True then FishParticle will also be counted as an item in inventory
 def capacity_remaining(count_fp=True):
     return game.capacity - (len(game.inventory)+(len(game.fish_p) if count_fp else 0))
+
+# returns inventory capacity
+def capacity():
+    return game.capacity
+
+# returns whether the menu is opened or not
+def menu_opened():
+    return game.overlay != None
 
 # loads a language and applies it
 def load_locale(locale):
@@ -125,6 +144,95 @@ load_locale(locale)
 
 
 # app classes
+
+# inventory
+class Inventory:
+    def __init__(self):
+        self.scroll_offset = 0
+        self.scroll_vel = 0
+        self.inv = {}
+        self.prev_len = 0
+        self.size = 0
+        self.update_btn_rect(windowy)
+
+    def update_btn_rect(self, y):
+        self.btn_rect = pg.Rect(windowx-150, y+10, 140, 20)
+
+    def draw(self, y):
+        # drawing title
+        size = draw.text(lang['inventory'], (10,y+5), size=24)[0]+20
+        cur_capacity = capacity()
+        draw.text(f'{cur_capacity-capacity_remaining(False)}/{cur_capacity}', (size, y+9), (180,180,180))
+
+        # drawing items
+        ongoing = self.scroll_offset+10
+        for i in self.inv:
+            rect = pg.Rect(ongoing, y+40, 100, 150)
+            amount = self.inv[i]
+            fish_type = dict_fish[i]
+            
+            # bg
+            pg.draw.rect(screen, (240,230,200) if not (rect.collidepoint(mouse_pos) and mouse_press[0]) else (200,190,160),rect, 0, 7)
+            pg.draw.rect(screen, (150,130,90),rect, 2, 7)
+
+            # info
+            draw.image(fish_type.image, (rect.centerx,rect.top+50), (80,80), 'm', 'm')
+            draw.text(lang[f'fish-{i}'], (rect.centerx,rect.bottom-60), (0,0,0), 12, h='m')
+
+            # cost
+            size = draw.get_text_size(str(fish_type.cost),14)[0]+20
+            draw.image('coin.png', (rect.centerx-size//2,rect.bottom-42), (14,14))
+            draw.text(str(fish_type.cost), (rect.centerx+size//2,rect.bottom-43), (0,0,0), 14, h='r', opacity=200)
+            
+            # stars
+            ongoing_stars = rect.left+8
+            for i in range(fish_type.stars):
+                draw.image('star.png', (ongoing_stars, rect.bottom-8), (15,15), v='b')
+                ongoing_stars += 17
+
+            # amount
+            size = draw.get_text_size(f'x{amount}', 14)[0]+10
+            size_rect = pg.Rect(rect.right-size, rect.bottom-20, size, 20)
+            pg.draw.rect(screen, (150,130,90),size_rect,border_top_left_radius=4, border_bottom_right_radius=4)
+            draw.text(f'x{amount}', (size_rect.centerx, size_rect.centery-1),(0,0,0), 14, h='m', v='m')
+
+            ongoing += 110
+
+        # drawing button
+        pg.draw.rect(screen, (240,230,200) if not (self.btn_hovered and mouse_press[0]) else (200,190,160),self.btn_rect, 0, 14)
+        pg.draw.rect(screen, (150,130,90),self.btn_rect, 2, 14)
+        draw.text(lang['sell-all'], (self.btn_rect.centerx, self.btn_rect.centery-1), (0,0,0), size=14, h='m', v='m')
+        draw.text(lang['sell-one'], (windowx-165, self.btn_rect.centery-1), (200,200,200), size=16, h='r', v='m')
+
+    def update(self, y):
+        # updating size
+        self.inv = get_inv()
+        if len(self.inv) != self.prev_len:
+            self.prev_len = len(self.inv)
+            self.size = max(0, len(self.inv)*110+10-windowx)
+        if self.btn_rect.top-10 != y:
+            self.update_btn_rect(y)
+
+        # scrolling
+        if mouse_scroll != 0.0:
+            self.scroll_vel -= mouse_scroll*15
+
+        if self.scroll_offset < 0:
+            self.scroll_offset = 0
+        if self.scroll_offset > self.size:
+            self.scroll_offset = self.size
+
+        self.scroll_offset += self.scroll_vel
+        self.scroll_vel /= 1.2
+
+        # selling one
+        ongoing = self.scroll_offset+10
+        for i in self.inv:
+            rect = pg.Rect(ongoing, y+40, 100, 150)
+            
+        # selling all
+        self.btn_hovered = self.btn_rect.collidepoint(mouse_pos)
+
 
 # experience manager (displays and handles the xp)
 class LevelManager:
@@ -278,6 +386,9 @@ class BtmBrButton:
             self.pressed = True
         if self.pressed and (not self.hovered or lmb_up):
             self.pressed = False
+
+        if self.hovered and lmb_up and not menu_opened():
+            set_menu(self.callback)
 
 
 # fish that gets stored in inventory, gets choosed in a rng and all this
@@ -532,10 +643,10 @@ class Game:
         self.level = LevelManager()
 
         self.buttons = [
-            BtmBrButton('inventory.png', 'inventory',0,self.regen_dict_inv),
-            BtmBrButton('shine_ball.png', 'shine',1,self.regen_dict_inv),
-            BtmBrButton('up.png', 'upgrade',2,self.regen_dict_inv),
-            BtmBrButton('settings.png', 'settings',3,self.regen_dict_inv),
+            BtmBrButton('inventory.png', 'inventory',0,Inventory),
+            BtmBrButton('shine_ball.png', 'shine',1,Inventory),
+            BtmBrButton('up.png', 'upgrade',2,Inventory),
+            BtmBrButton('settings.png', 'settings',3,Inventory),
         ]
         self.overlay = None
         self.dragging = False
@@ -544,6 +655,9 @@ class Game:
 
         self.start_dim = 1.0
         self.dim_surface = pg.Surface((windowx,windowy))
+        self.menu_key = 0.0
+        self.menu_closing = False
+        self.menu_ease = windowy
 
         self.play_bg_music()
 
@@ -560,11 +674,11 @@ class Game:
 
     # regenerates the dict_inv
     def regen_dict_inv(self):
-        counted = {}
+        self.dict_inv = {}
         for i in self.inventory:
-            if i.key not in counted:
-                counted[i.key] = 0
-            counted[i.key] += 1
+            if i.key not in self.dict_inv:
+                self.dict_inv[i.key] = 0
+            self.dict_inv[i.key] += 1
 
     # updates the gui
     def update_gui(self):
@@ -586,8 +700,49 @@ class Game:
         # xp bar
         self.level.update()
 
+        # menu
+        if self.overlay != None:
+            # open animation
+            if self.menu_key < 1.0 and not self.menu_closing:
+                self.menu_key += 0.04
+                self.menu_key = round(self.menu_key, 2)
+            # close animation
+            if self.menu_closing:
+                self.menu_key -= 0.04
+                if self.menu_key <= 0.0:
+                    self.overlay = None
+                    self.menu_closing = False
+            # animating
+            self.menu_ease = easing.QuarticEaseOut(0,1,1).ease(self.menu_key)
+            self.menu_ease = windowy-self.menu_ease*200
+            # closing menu
+            if lmb_up and mouse_pos[1] < windowy-200:
+                self.menu_closing = True
+            # updating
+            if self.overlay != None:
+                self.overlay.update(self.menu_ease)
+            
+
     # draws the gui
     def draw_gui(self):
+        # full inventory notification
+        if self.full_inv_appeaeance > 0.0:
+            ease = easing.ExponentialEaseOut(0,50,1).ease(self.full_inv_appeaeance)
+            size = draw.get_text_size(lang['full-bin'])[0]
+            rect = pg.Rect(halfx-size/2-15,windowy-ease,size+30,40)
+            pg.draw.rect(screen, (200,50,50), rect, 0, 7)
+            draw.text(lang['full-bin'], rect.center, h='m', v='m')
+
+        # buttons
+        for i in self.buttons:
+            i.draw()
+
+        # menu
+        if self.overlay != None:
+            pg.draw.rect(screen, (30,30,30), pg.Rect(0,self.menu_ease, windowx,200))
+            draw.image('shadow.png', (0,self.menu_ease-100), (windowx,100), opacity=self.menu_key*255)
+            self.overlay.draw(self.menu_ease)
+
         # money counter
         draw.image('coin.png', (40,40), (32,32), h='m', v='m')
         draw.text(str(self.balance), (70,40), size=26, v='m')
@@ -603,54 +758,42 @@ class Game:
         size -= draw.text(f'/', (size,40), size=22, h='r', v='m')[0]+1
         draw.text(str(len(self.inventory)), (size,40), size=26, h='r', v='m')
 
-        # full inventory notification
-        if self.full_inv_appeaeance > 0.0:
-            ease = easing.ExponentialEaseOut(0,50,1).ease(self.full_inv_appeaeance)
-            size = draw.get_text_size(lang['full-bin'])[0]
-            rect = pg.Rect(halfx-size/2-15,windowy-ease,size+30,40)
-            pg.draw.rect(screen, (200,50,50), rect, 0, 7)
-            draw.text(lang['full-bin'], rect.center, h='m', v='m')
-
-        # buttons
-        for i in self.buttons:
-            i.draw()
-
         # xp level
         self.level.draw()
 
         # fishing rod
-        draw.image('hook.png', self.rod_pos, (50,80), 'r','m')
-        pg.draw.aaline(screen, (0,0,0), (self.rod_pos[0]-25, self.rod_pos[1]-40), (self.rod_offset-25, -1))
+        draw.image('hook.png', self.rod_pos, (20,35), 'r','m')
+        pg.draw.aaline(screen, (0,0,0), (self.rod_pos[0]-11, self.rod_pos[1]-17), (self.rod_offset-11, -1))
 
     # updates the game
     def update(self):
         old_inv = self.inventory
-        # boid spawning
-        self.spawn_after -= 1
-        if self.spawn_after <= 0:
-            self.type = choose_type(level=self.level.level)
-            self.boid_size = random.randint(
-                int(self.type.boid_min*self.boid_size_boost),
-                int(self.type.boid_max*self.boid_size_boost),
-            )
-            self.fish_spawn_time = random.randint(self.boid_spawn_speed-10, self.boid_spawn_speed+10)
-            self.spawn_after = self.spawn_speed + self.boid_size*self.boid_spawn_speed
-            self.position = random.random()
-            self.flip = bool(random.randint(0,1))
-
-        # individual fish from the boid spawning
-        if self.boid_size > 0:
-            self.fish_spawn_time -= 1
-            if self.fish_spawn_time <= 0:
-                self.fish_spawn_time = random.randint(
-                    self.boid_spawn_speed-(self.boid_spawn_speed/5),
-                    self.boid_spawn_speed+(self.boid_spawn_speed/5)
-                )
-                self.fish.append(Fish(self.position, self.flip, self.type))
-                self.boid_size -= 1
-
-        # updating game
         if self.overlay == None:
+            # boid spawning
+            self.spawn_after -= 1
+            if self.spawn_after <= 0:
+                self.type = choose_type(level=self.level.level)
+                self.boid_size = random.randint(
+                    int(self.type.boid_min*self.boid_size_boost),
+                    int(self.type.boid_max*self.boid_size_boost),
+                )
+                self.fish_spawn_time = random.randint(self.boid_spawn_speed-10, self.boid_spawn_speed+10)
+                self.spawn_after = self.spawn_speed + self.boid_size*self.boid_spawn_speed
+                self.position = random.random()
+                self.flip = bool(random.randint(0,1))
+
+            # individual fish from the boid spawning
+            if self.boid_size > 0:
+                self.fish_spawn_time -= 1
+                if self.fish_spawn_time <= 0:
+                    self.fish_spawn_time = random.randint(
+                        self.boid_spawn_speed-(self.boid_spawn_speed/5),
+                        self.boid_spawn_speed+(self.boid_spawn_speed/5)
+                    )
+                    self.fish.append(Fish(self.position, self.flip, self.type))
+                    self.boid_size -= 1
+
+            # updating game
             self.water.update()
 
             # updating fish
@@ -669,7 +812,7 @@ class Game:
                     out.append(i)
             self.fish_p = out
 
-            self.update_gui()
+        self.update_gui()
 
         # updaing fishing rod
         self.rod_pos = dlerp(self.rod_pos, init_pos, 0.15)
@@ -740,12 +883,11 @@ class LoadingScreen:
 
         # 1st frame
         if self.frame == 0:
-            draw.text('', (halfx,halfy-30), (255,255,255), size=40, h='m', v='m')
-            draw.text('Loading screen!!!!', (halfx,halfy+30), (200,200,200), size=24, h='m', v='m')
+            draw.text('', (halfx,halfy-30), (255,60,60), size=40, h='m', v='m')
+            draw.text('Loading screen!!!!', (halfx,halfy+30), (255,255,255), size=24, h='m', v='m')
 
         # 2nd frame
         elif self.frame == 1:
-            draw.text('кабдыщщщ', (halfx,halfy-30), (255,60,60), size=40, h='m', v='m')
             draw.text(lang['click_to_start'], (halfx,windowy-50), size=20, h='m', v='m')
 
         # dimming screen
@@ -767,9 +909,10 @@ class LoadingScreen:
 
 def load_game():
     # fish
-    global fish
+    global fish, dict_fish
     data = read_json('res/json/fish.json')
     fish = [FishType(i, **data[i]) for i in data]
+    dict_fish = {i: FishType(i, **data[i]) for i in data}
 
 load_game()
 game = LoadingScreen()
@@ -789,6 +932,7 @@ while running:
     ]
     mouse_press = pg.mouse.get_pressed(5)
     mouse_moved = pg.mouse.get_rel()
+    mouse_scroll = 0.0
     if type(game) == Game:
         mouse_pos = game.rod_pos
     else:
@@ -822,13 +966,24 @@ while running:
 
         if event.type == pg.KEYDOWN:
             pressed.append(event.key)
+            if event.key == pg.K_F3:
+                show_fps = not show_fps
+
+        if event.type == pg.MOUSEWHEEL:
+            mouse_scroll = event.y
 
     # updating screen
     game.update()
     game.draw()
+
+    # showing fps
+    if show_fps:
+        draw.text(f'FPS: {dfps}', (5,3), (0,0,0))
+        draw.text(f'FPS: {dfps}', (5,2))
 
     # resizing the screen surface to match with the window resolution
     surface = pg.transform.smoothscale(screen, (screenx, screeny))
     window.blit(surface, (0,0))
     pg.display.flip()
     clock.tick(fps)
+    dfps = round(clock.get_fps(), 1)
