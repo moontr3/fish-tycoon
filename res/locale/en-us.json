@@ -34,6 +34,9 @@
     "cur-smoothness": "Cursor smoothness decrease",
     "cur-smoothness-desc": "Makes the cursor less smooth.",
     "max-lvl": "Max Lvl",
+    "smoothscale": "Scaling",
+    "smooth": "Smooth",
+    "rough": "Rough",
 
     "fish-carp": "Carp",
     "fish-cod": "Cod",

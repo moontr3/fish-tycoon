@@ -34,6 +34,9 @@
     "cur-smoothness": "Уменьшение плавности курсора",
     "cur-smoothness-desc": "Уменьшает плавность курсора.",
     "max-lvl": "Макс. ур.",
+    "smoothscale": "Сглаживание",
+    "smooth": "Гладкий",
+    "rough": "Грубый",
 
     "fish-carp": "Карп",
     "fish-cod": "Треска",

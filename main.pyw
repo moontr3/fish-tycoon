@@ -53,6 +53,7 @@ rod_pos = [0,0]
 dfps = 0.0
 show_fps = False
 still_water = False
+smoothscale = True
 
 
 # app functions
@@ -200,6 +201,15 @@ def change_water(value):
     still_water = value
     game.water = Water((windowx,windowy), value)
 
+# changes resize method
+def change_resize_method(is_smooth):
+    global smoothscale, resize_method
+    smoothscale = is_smooth
+    if smoothscale:
+        resize_method = pg.transform.smoothscale
+    else:
+        resize_method = pg.transform.scale
+
 # returns current bin upgrade cost
 def get_bin_cost():
     return game.capacity_cost
@@ -266,6 +276,7 @@ def save():
         'bal': game.balance,
         'xp': game.level.xp,
         'still_water': still_water,
+        'smoothscale': smoothscale,
         'lang': locale,
         'capacity': game.capacity,
         'boid_boost': game.boid_size_boost,
@@ -281,6 +292,14 @@ def fetch_locale():
         load_locale(data['lang'])
     except Exception as e:
         load_locale('ru-ru')
+
+# loads the resize mehtod from the file
+def fetch_resize_method():
+    try:
+        data = read('save')
+        change_resize_method(data['smoothscale'])
+    except:
+        change_resize_method(True)
 
 # load the game from the file
 def load():
@@ -301,6 +320,7 @@ def load():
         game.update_boid_boost(data['boid_boost'])
         game.update_spawn_time(data['spawn_speed'])
         game.update_cur_smoothness(data['cur_smoothness'])
+        change_resize_method(data['smoothscale'])
 
     except Exception as e:
         load_locale('ru-ru')
@@ -317,6 +337,7 @@ def load():
         })
 
 fetch_locale()
+fetch_resize_method()
 
 
 # app classes
@@ -593,7 +614,11 @@ class Settings:
             SettingsSwitch([
                 SwitchElement(True, 'still_water.png', 'still-water'),
                 SwitchElement(False, 'wavy_water.png', 'wavy-water'),
-            ], 'water-flow', change_water, 'still_water')
+            ], 'water-flow', change_water, 'still_water'),
+            SettingsSwitch([
+                SwitchElement(True, 'smooth.png', 'smooth'),
+                SwitchElement(False, 'rough.png', 'rough'),
+            ], 'smoothscale', change_resize_method, 'smoothscale')
         ]
         self.size = max(0, sum([i.size for i in self.items])+10-windowx)
 
@@ -1475,7 +1500,7 @@ while running:
         draw.text(f'FPS: {dfps}', (5,2))
 
     # resizing the screen surface to match with the window resolution
-    surface = pg.transform.smoothscale(screen, (screenx, screeny))
+    surface = resize_method(screen, (screenx, screeny))
     window.blit(surface, (0,0))
     pg.display.flip()
     clock.tick(fps)
