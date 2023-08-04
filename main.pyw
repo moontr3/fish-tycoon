@@ -1094,7 +1094,7 @@ class Game:
     # updates cursor smoothness
     def update_cur_smoothness(self, amount):
         self.cur_smoothness = amount
-        self.cur_smooth_cost = 100+round(((amount*2)-0.2)*10)+100
+        self.cur_smooth_cost = 100+round(((amount*2)-0.2)*10)*100
 
     # updates the gui
     def update_gui(self):
@@ -1260,6 +1260,51 @@ class Game:
             screen.blit(self.dim_surface, (0,0))
 
 
+# dust particle or whatever this thing is on the loading screen
+class LSParticle:
+    def __init__(self):
+        self.x = random.randint(halfx-200,halfx+200)
+        self.y = windowy+10
+        self.removable = False
+        self.speed = random.random()/2+0.75
+
+        # size properties
+        self.size = random.randint(8,15)
+        self.size_key = random.random()*pi
+        self.size_speed = random.random()/20+0.02 # how fast the size changes
+        self.size_strength = random.randint(1,4) # how strong is the size change
+
+        # opacity properties
+        self.alpha = random.randint(110,180)
+        self.alpha_key = 0
+        self.alpha_speed = random.random()/30+0.02 # how fast the opacity changes
+        self.alpha_strength = random.randint(15,69) # how strong is the opacity change
+
+        # offset (wobbling) properties
+        self.offset_key = random.random()*pi
+        self.offset_speed = random.random()/20+0.01 # how fast the offset changes
+        self.offset_strength = random.randint(4,15) # how strong is the offset
+
+    def update(self):
+        self.y -= self.speed
+        if self.y <= -20:
+            self.removable = True
+
+        self.size_key += self.size_speed
+        self.alpha_key += self.alpha_speed
+        self.offset_key += self.offset_speed
+
+    def draw(self):
+        size = self.size+sin(self.size_key)*self.size_strength
+        ease = easing.ExponentialEaseOut(0,1,1).ease(self.y/windowy)
+        opacity = (self.alpha + sin(self.alpha_key)*self.alpha_strength) * ease
+        draw.image(
+            'ambient_particle.png', 
+            (self.x+sin(self.offset_key)*self.offset_strength, self.y), 
+            (size, size), 'm','m', opacity=opacity
+        )
+
+
 # loading screen, doesn't actually load anything but there's a cool animation
 class LoadingScreen:
     def __init__(self):
@@ -1269,6 +1314,8 @@ class LoadingScreen:
         self.surface = pg.Surface((windowx,windowy))
         self.switch_key = 0.0
         self.switching = False
+        self.particles = []
+        self.particle_spawn_timeout = 0
 
     def update_alpha(self):
         self.alpha = self.key*5 if self.key < 51 else min(255, (300-self.key)*5)
@@ -1292,6 +1339,22 @@ class LoadingScreen:
             game = Game()
             load()
 
+        # particles
+        if self.frame == 1:
+            # spawning
+            self.particle_spawn_timeout -= 1
+            if self.particle_spawn_timeout <= 0:
+                self.particles.append(LSParticle())
+                self.particle_spawn_timeout = random.randint(10,40)
+
+            # updating
+            new = []
+            for i in self.particles:
+                i.update()
+                if not i.removable:
+                    new.append(i)
+            self.particles = new
+
         # other things
         self.update_alpha()
 
@@ -1310,6 +1373,10 @@ class LoadingScreen:
         elif self.frame == 1:
             # bg
             draw.image('ambient_glow.png', (halfx,windowy), (700,200), 'm', 'b')
+
+            # particles
+            for i in self.particles:
+                i.draw()
 
             # text
             draw.text(lang['click_to_start'], (halfx,windowy-50), size=20, h='m', v='m')
@@ -1404,7 +1471,7 @@ while running:
 
     # showing fps
     if show_fps:
-        draw.text(f'FPS: {dfps}', (5,3), (0,0,0))
+        draw.text(f'FPS: {dfps}', (5,3), (0,0,0)) # shadow
         draw.text(f'FPS: {dfps}', (5,2))
 
     # resizing the screen surface to match with the window resolution
