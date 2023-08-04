@@ -38,7 +38,6 @@ fps = 60
 
 window = pg.display.set_mode((screenx,screeny), pg.RESIZABLE)
 screen = pg.Surface((windowx, windowy))
-pg.mouse.set_visible(False)
 running = True
 pg.display.set_caption('caption')
 draw.def_surface = screen
@@ -201,6 +200,64 @@ def change_water(value):
     still_water = value
     game.water = Water((windowx,windowy), value)
 
+# returns current bin upgrade cost
+def get_bin_cost():
+    return game.capacity_cost
+
+# returns current balance
+def get_balance():
+    return game.balance
+
+# adds/substracts to game balance
+def modify_bal(amount):
+    global game
+    game.balance += amount
+
+
+# upgrade inventory capacity
+def upgrade_bin():
+    global game
+    game.update_capacity(game.capacity+1)
+
+# upgrade boid size
+def upgrade_boid_boost():
+    global game
+    game.update_boid_boost(round(game.boid_size_boost+0.1, 1))
+
+# get boid boost limit for upgrading
+def boid_boost_limit():
+    return (round(game.boid_size_boost*10)-10, 15)
+
+# get boid boost cost
+def boid_boost_cost():
+    return game.boid_boost_cost
+
+# upgrade boid size
+def upgrade_fish_speed():
+    global game
+    game.update_spawn_time(game.spawn_speed-10)
+
+# get boid boost limit for upgrading
+def fish_speed_limit():
+    return (round((300-game.spawn_speed)/10), 25)
+
+# get boid boost cost
+def fish_speed_cost():
+    return game.spawn_speed_cost
+
+# upgrade cursor smoothness
+def upgrade_cur_smoothness():
+    global game
+    game.update_cur_smoothness(game.cur_smoothness+0.05)
+
+# get cursor smoothness limit for upgrading
+def cur_smoothness_limit():
+    return (round(((game.cur_smoothness*2)-0.2)*10), 10)
+
+# get cursor smoothness cost
+def cur_smoothness_cost():
+    return game.cur_smooth_cost
+
 
 # save the game to the file
 def save():
@@ -210,7 +267,10 @@ def save():
         'xp': game.level.xp,
         'still_water': still_water,
         'lang': locale,
-        'capacity': game.capacity
+        'capacity': game.capacity,
+        'boid_boost': game.boid_size_boost,
+        'spawn_speed': game.spawn_speed,
+        'cur_smoothness': game.cur_smoothness
     }
     write('save', data)
 
@@ -237,7 +297,11 @@ def load():
         game.inventory = [dict_fish[i] for i in data['inv']]
         game.regen_dict_inv()
         game.balance = data['bal']
-        game.capacity = data['capacity']
+        game.update_capacity(data['capacity'])
+        game.update_boid_boost(data['boid_boost'])
+        game.update_spawn_time(data['spawn_speed'])
+        game.update_cur_smoothness(data['cur_smoothness'])
+
     except Exception as e:
         load_locale('ru-ru')
         write('save', {
@@ -246,13 +310,128 @@ def load():
             'xp': 0,
             'still_water': False,
             'lang': 'ru-ru',
-            'capacity': 5
+            'capacity': 5,
+            'boid_boost': 1.0,
+            'spawn_speed': 300,
+            'cur_smoothness': 0.1
         })
 
 fetch_locale()
 
 
 # app classes
+
+# upgrade element
+class UpgradeElement:
+    def __init__(self, image, name, cost_callback, upgrade_callback, limit_callback=None):
+        self.image = image
+        self.text = lang[name]
+        self.desc = lang[f'{name}-desc']
+        self.cost_callback = cost_callback
+        self.upgrade_callback = upgrade_callback
+        self.cost = cost_callback()
+        self.size = 160+draw.get_text_size(self.text, 36)[0]+10
+        self.limit_callback = limit_callback
+
+    def draw(self, pos):
+        rect = pg.Rect((pos[0], pos[1]+40), (self.size-10, 150))
+        bal = get_balance()
+
+        # bg
+        if self.limit_callback != None:
+            check = self.limit_callback()
+            check = check[0] < check[1]
+        else:
+            check = True
+
+        if bal < self.cost or not check:
+            pg.draw.rect(screen, (220,210,180),rect, 0, 7)
+        else:
+            pg.draw.rect(screen, (240,230,200) if not (rect.collidepoint(mouse_pos) and mouse_press[0]) else (200,190,160),rect, 0, 7)
+        pg.draw.rect(screen, (150,130,90),rect, 2, 7)
+
+        # data
+        draw.image(self.image, (rect.left+70, rect.centery), (90,90), 'm', 'm')
+        draw.text(self.text, (rect.left+140, rect.top+20), (0,0,0), size=36, opacity=230)
+        draw.text(self.desc, (rect.left+140, rect.top+60), (0,0,0), size=18, opacity=128)
+        
+        # cost
+        if bal < self.cost:
+            draw.image('coin.png', (rect.left+140, rect.bottom-54), (24,24))
+            draw.text(f'{bal} / {self.cost}', (rect.left+170, rect.bottom-56), (255,50,50), size=24, opacity=170)
+        elif not check:
+            draw.text(lang['max-lvl'], (rect.left+140, rect.bottom-56), (0,0,0), size=24, opacity=150)
+        else:
+            draw.image('coin.png', (rect.left+140, rect.bottom-54), (24,24))
+            draw.text(str(self.cost), (rect.left+170, rect.bottom-56), (0,0,0), size=24, opacity=170)
+
+        # limit
+        if self.limit_callback != None:
+            data = self.limit_callback()
+            draw.text(f'{data[0]} / {data[1]}', (rect.right-25, rect.bottom-50), (0,0,0), size=20, h='r', opacity=200)
+
+    def update(self, pos):
+        # updating elements
+        rect = pg.Rect((pos[0], pos[1]+40), (self.size-10, 150))
+        self.cost = self.cost_callback()
+
+        if rect.collidepoint(mouse_pos) and lmb_up:
+            bal = get_balance()
+            if bal < self.cost:
+                pass
+            else:
+                if self.limit_callback != None:
+                    data = self.limit_callback()
+                    data = data[0] < data[1]
+                else:
+                    data = True
+                if data:
+                    modify_bal(-self.cost)
+                    self.upgrade_callback()
+
+
+# upgrade menu
+class UpgradeMenu:
+    def __init__(self):
+        self.elements = [
+            UpgradeElement('bin.png', 'bin-upgrade', get_bin_cost, upgrade_bin),
+            UpgradeElement('fish.png', 'fish-boost', boid_boost_cost, upgrade_boid_boost, boid_boost_limit),
+            UpgradeElement('poof.png', 'spawn-speed', fish_speed_cost, upgrade_fish_speed, fish_speed_limit),
+            UpgradeElement('mouse.png', 'cur-smoothness', cur_smoothness_cost, upgrade_cur_smoothness, cur_smoothness_limit),
+        ]
+        self.scroll_offset = 0
+        self.scroll_vel = 0
+        self.size = max(0, sum([i.size for i in self.elements])+10-windowx)
+
+    def draw(self, y):
+        # drawing title
+        size = draw.text(lang['upgrade'], (10,y+5), size=24)[0]+20
+
+        # drawing elements
+        ongoing = 10-self.scroll_offset
+        for i in self.elements:
+            i.draw((ongoing, y))
+            ongoing += i.size
+
+    def update(self, y):
+        # scrolling
+        if mouse_scroll != 0.0:
+            self.scroll_vel -= mouse_scroll*15
+
+        if self.scroll_offset < 0:
+            self.scroll_offset = 0
+        if self.scroll_offset > self.size:
+            self.scroll_offset = self.size
+
+        self.scroll_offset += self.scroll_vel
+        self.scroll_vel /= 1.2
+
+        # updating elements
+        ongoing = 10-self.scroll_offset
+        for i in self.elements:
+            i.update((ongoing, y))
+            ongoing += i.size
+
 
 # inventory
 class Inventory:
@@ -275,7 +454,7 @@ class Inventory:
         draw.text(f'{cur_capacity-capacity_remaining(False)}/{cur_capacity}', (size, y+9), (180,180,180))
 
         # drawing items
-        ongoing = self.scroll_offset+10
+        ongoing = 10-self.scroll_offset
         for i in self.inv:
             rect = pg.Rect(ongoing, y+40, 100, 150)
             amount = self.inv[i]
@@ -340,7 +519,7 @@ class Inventory:
         self.scroll_vel /= 1.2
 
         # selling one or batch
-        ongoing = self.scroll_offset+10
+        ongoing = 10-self.scroll_offset
         for i in self.inv:
             rect = pg.Rect(ongoing, y+40, 100, 150)
             if rect.collidepoint(mouse_pos) and lmb_up:
@@ -468,7 +647,7 @@ class LevelManager:
         self.level = 1
         self.total_level_xp = 50
         self.level_xp = self.xp
-        while self.level_xp > self.total_level_xp:
+        while self.level_xp >= self.total_level_xp:
             self.level += 1
             self.level_xp -= self.total_level_xp
             self.total_level_xp += 30
@@ -838,9 +1017,11 @@ class Water:
 # main game with all buttonss, fish and all this
 class Game:
     def __init__(self):
-        self.spawn_speed = 300
+        pg.mouse.set_visible(False) 
+
+        self.update_spawn_time(300)
         self.boid_spawn_speed = 100
-        self.boid_size_boost = 1
+        self.update_boid_boost(1)
 
         self.fish = []
         self.water = Water((windowx, windowy), False)
@@ -850,16 +1031,16 @@ class Game:
 
         self.balance = 0
         self.bin_scale = 0.0
-        self.full_inv_appeaeance = 0.0
+        self.full_inv_appearance = 0.0
         self.inventory = []
         self.dict_inv = {}
-        self.capacity = 5
+        self.update_capacity(5)
         self.level = LevelManager()
 
         self.buttons = [
             BtmBrButton('inventory.png', 'inventory',0,Inventory),
             BtmBrButton('shine_ball.png', 'shine',1,Inventory),
-            BtmBrButton('up.png', 'upgrade',2,Inventory),
+            BtmBrButton('up.png', 'upgrade',2,UpgradeMenu),
             BtmBrButton('settings.png', 'settings',3,Settings),
         ]
         self.overlay = None
@@ -872,6 +1053,7 @@ class Game:
         self.menu_key = 0.0
         self.menu_closing = False
         self.menu_ease = windowy
+        self.update_cur_smoothness(0.1)
 
         self.play_bg_music()
 
@@ -894,6 +1076,26 @@ class Game:
                 self.dict_inv[i.key] = 0
             self.dict_inv[i.key] += 1
 
+    # updates bin capacity
+    def update_capacity(self, amount):
+        self.capacity = amount
+        self.capacity_cost = 50+(amount-5)*30
+
+    # updates boid size boost
+    def update_boid_boost(self, amount):
+        self.boid_size_boost = amount
+        self.boid_boost_cost = 100+(round(amount*10)-10)*75
+
+    # updates fish spawn time
+    def update_spawn_time(self, amount):
+        self.spawn_speed = amount
+        self.spawn_speed_cost = 100+round((300-amount)/10)*50
+
+    # updates cursor smoothness
+    def update_cur_smoothness(self, amount):
+        self.cur_smoothness = amount
+        self.cur_smooth_cost = 100+round(((amount*2)-0.2)*10)+100
+
     # updates the gui
     def update_gui(self):
         # bin animation
@@ -902,10 +1104,10 @@ class Game:
 
         # full inventory notification
         if capacity_remaining() <= 0:
-            if self.full_inv_appeaeance < 1.0:
-                self.full_inv_appeaeance += 0.02
-        elif self.full_inv_appeaeance > 0.0:
-            self.full_inv_appeaeance -= 0.02
+            if self.full_inv_appearance < 1.0:
+                self.full_inv_appearance += 0.02
+        elif self.full_inv_appearance > 0.0:
+            self.full_inv_appearance -= 0.02
 
         # buttons
         for i in self.buttons:
@@ -940,8 +1142,8 @@ class Game:
     # draws the gui
     def draw_gui(self):
         # full inventory notification
-        if self.full_inv_appeaeance > 0.0:
-            ease = easing.ExponentialEaseOut(0,50,1).ease(self.full_inv_appeaeance)
+        if self.full_inv_appearance > 0.0:
+            ease = easing.ExponentialEaseOut(0,50,1).ease(self.full_inv_appearance)
             size = draw.get_text_size(lang['full-bin'])[0]
             rect = pg.Rect(halfx-size/2-15,windowy-ease,size+30,40)
             pg.draw.rect(screen, (200,50,50), rect, 0, 7)
@@ -1029,7 +1231,7 @@ class Game:
         self.update_gui()
 
         # updaing fishing rod
-        self.rod_pos = dlerp(self.rod_pos, init_pos, 0.15)
+        self.rod_pos = dlerp(self.rod_pos, init_pos, self.cur_smoothness)
         self.rod_offset = lerp(self.rod_offset, self.rod_pos[0], 0.4)
 
         # updating inventory
@@ -1106,6 +1308,10 @@ class LoadingScreen:
 
         # 2nd frame
         elif self.frame == 1:
+            # bg
+            draw.image('ambient_glow.png', (halfx,windowy), (700,200), 'm', 'b')
+
+            # text
             draw.text(lang['click_to_start'], (halfx,windowy-50), size=20, h='m', v='m')
 
         # dimming screen
@@ -1117,7 +1323,7 @@ class LoadingScreen:
         if self.switch_key > 0.0:
             ease = easing.ExponentialEaseIn(0,1,1).ease(self.switch_key)
             size = (50+ease*500+self.switch_key*500,50+ease*500+self.switch_key*500)
-            draw.image('sparkle.png', (halfx,halfy), size, 'm', 'm', ease*100, ease*255, temp=True)
+            draw.image('glow.png', (halfx,halfy), size, 'm', 'm', opacity=ease*255, temp=True)
             self.surface.fill((255,255,255))
             self.surface.set_alpha(ease*255)
             screen.blit(self.surface, (0,0))

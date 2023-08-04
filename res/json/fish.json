@@ -26,6 +26,24 @@
         "cost": 15,
         "stars": 1
     },
+    "catfish": {
+        "size": 80,
+        "image": "catfish.png",
+        "boid_size": [1,2],
+        "rareness": 25,
+        "rareness_increase": 2,
+        "cost": 30,
+        "stars": 1
+    },
+    "flounder": {
+        "size": 40,
+        "image": "flounder.png",
+        "boid_size": [1,4],
+        "rareness": 20,
+        "rareness_increase": 3,
+        "cost": 40,
+        "stars": 2
+    },
     "salmon": {
         "size": 70,
         "image": "salmon.png",
