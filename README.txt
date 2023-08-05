@@ -1,8 +1,12 @@
-ИНФОРМАЦИЯ
+https://github.com/moontr3/fish-tycoon
 
-- В приложенный исполняемый файл уже вшиты все
-  данные игры, так что его можно переместить в
-  любое место отдельно и спокойно играть.
+
+Автор:
+
+Telegram - @moontr3
+Discord - moontr3
+Discord - moontr3#4950
+GitHub - https://github.com/moontr3
 
 
 ПОДСКАЗКИ
