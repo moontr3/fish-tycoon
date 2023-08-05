@@ -75,7 +75,7 @@
         "size": 30,
         "image": "gold_fish.png",
         "boid_size": [1,1],
-        "rareness": 1,
+        "rareness": 5555,
         "rareness_increase": 4,
         "cost": 500,
         "stars": 3

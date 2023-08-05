@@ -39,7 +39,7 @@ fps = 60
 window = pg.display.set_mode((screenx,screeny), pg.RESIZABLE)
 screen = pg.Surface((windowx, windowy))
 running = True
-pg.display.set_caption('caption')
+pg.display.set_caption('Fish Tycoon')
 draw.def_surface = screen
 
 halfx = windowx//2
@@ -97,6 +97,16 @@ def write(fp, data):
 
 
 # game functions
+
+# plays a sound
+def play_sound(path, vol=1.0, force=True):
+    sound = pg.mixer.Sound('res/sounds/'+path)
+    sound.set_volume(vol)
+    channel = pg.mixer.find_channel(force)
+    if channel != None:
+        channel.stop()
+        channel.play(sound)
+
 
 # enable or disable dragging, used for correct handling of the fish dragging
 def set_dragging(state: bool = True):
@@ -283,6 +293,7 @@ def alert(text):
     global game
     try:
         game.alerts.insert(0, Alert(text))
+        play_sound('notification.mp3', 0.1)
     except:
         pass
 
@@ -327,8 +338,8 @@ def load():
         tutorial = False
         load_locale(data['lang'], False)
         change_water(data['still_water'])
-        game.level.add(data['xp'])
-        game.level.update_level()
+        game.level.xp = data['xp']
+        game.level.update_level(play=False)
         game.level.vis_percentage = game.level.percentage
         game.level.old_level = game.level.level
         game.inventory = [dict_fish[i] for i in data['inv']]
@@ -516,6 +527,7 @@ class ShineMenu:
         # pressing
         if self.btn_rect.collidepoint(mouse_pos) and lmb_up:
             bal = get_balance()
+            play_sound('up.mp3')
             if self.shining or self.shine_item != None:
                 pass
             elif bal < 175:
@@ -529,6 +541,7 @@ class ShineMenu:
                 catch(item, True)
                 self.shining = True
                 self.shine_item = item
+                play_sound('shine.mp3')
 
         # shining animation
         if self.shining:
@@ -556,6 +569,9 @@ class ShineMenu:
         if self.btn_rect.collidepoint(mouse_pos):
             if self.hover_key < 1.0:
                 self.hover_key += 0.05
+            # playing sound
+            if lmb_down:
+                play_sound('down.mp3')
         elif self.hover_key > 0.0:
             self.hover_key -= 0.05
 
@@ -595,11 +611,11 @@ class UpgradeElement:
         draw.text(self.desc, (rect.left+140, rect.top+60), (0,0,0), size=18, opacity=128)
         
         # cost
-        if bal < self.cost:
+        if not check:
+            draw.text(lang['max-lvl'], (rect.left+140, rect.bottom-56), (0,0,0), size=24, opacity=150)
+        elif bal < self.cost:
             draw.image('coin.png', (rect.left+140, rect.bottom-54), (24,24))
             draw.text(f'{bal} / {self.cost}', (rect.left+170, rect.bottom-56), (255,50,50), size=24, opacity=170)
-        elif not check:
-            draw.text(lang['max-lvl'], (rect.left+140, rect.bottom-56), (0,0,0), size=24, opacity=150)
         else:
             draw.image('coin.png', (rect.left+140, rect.bottom-54), (24,24))
             draw.text(str(self.cost), (rect.left+170, rect.bottom-56), (0,0,0), size=24, opacity=170)
@@ -614,20 +630,27 @@ class UpgradeElement:
         rect = pg.Rect((pos[0], pos[1]+40), (self.size-10, 150))
         self.cost = self.cost_callback()
 
-        if rect.collidepoint(mouse_pos) and lmb_up:
-            bal = get_balance()
-            if bal < self.cost:
-                alert(lang['insufficient-funds'])
-            else:
-                alert(lang['upgraded']+f' {self.text}')
+        if rect.collidepoint(mouse_pos):
+            if lmb_down:
+                play_sound('down.mp3')
+            if lmb_up:
+                play_sound('up.mp3')
+                bal = get_balance()
                 if self.limit_callback != None:
                     data = self.limit_callback()
                     data = data[0] < data[1]
                 else:
                     data = True
-                if data:
-                    modify_bal(-self.cost)
-                    self.upgrade_callback()
+
+                if not data:
+                    alert(lang['max-lvl-reached'])
+                else:
+                    if bal >= self.cost:
+                        alert(lang['upgraded']+f' {self.text}')
+                        modify_bal(-self.cost)
+                        self.upgrade_callback()
+                    else:
+                        alert(lang['insufficient-funds'])
 
 
 # upgrade menu
@@ -762,9 +785,13 @@ class Inventory:
         ongoing = 10-self.scroll_offset
         for i in self.inv:
             rect = pg.Rect(ongoing, y+40, 100, 150)
-            if rect.collidepoint(mouse_pos) and lmb_up:
-                sell(i, keys[pg.K_LSHIFT])
-                break
+            if rect.collidepoint(mouse_pos):
+                if lmb_down:
+                    play_sound('down.mp3')
+                if lmb_up:
+                    play_sound('up.mp3')
+                    sell(i, keys[pg.K_LSHIFT])
+                    break
             ongoing += 110
 
         # selling all
@@ -775,6 +802,13 @@ class Inventory:
                 alert(lang['sold-all'])
         elif self.btn_hovered != False:
             self.btn_hovered = False
+
+        # playing sound
+        if self.btn_rect.collidepoint(mouse_pos):
+            if lmb_down:
+                play_sound('down.mp3')
+            if lmb_up:
+                play_sound('up.mp3')
 
 # switch element
 class SwitchElement:
@@ -818,8 +852,12 @@ class SettingsSwitch:
         rect = pg.Rect(pos, (100,150))
         hovered = rect.collidepoint(mouse_pos)
 
-        if hovered and lmb_up:
-            self.next()
+        if hovered:
+            if lmb_down:
+                play_sound('down.mp3')
+            if lmb_up:
+                play_sound('up.mp3')
+                self.next()
 
 # settings menu
 class Settings:
@@ -878,7 +916,7 @@ class LevelManager:
         self.xp = 0
         self.vis_percentage = 0.0
         self.level = 1
-        self.update_level()
+        self.update_level(False)
         self.level_up = False
         self.level_up_key = 0.0
         self.old_level = 1
@@ -886,7 +924,7 @@ class LevelManager:
 
     # used to update the variables relating to self.xp
     # to add xp use self.add(amount)
-    def update_level(self):
+    def update_level(self, play=True):
         # percentage and all that stuff
         old_lvl = self.level
         self.level = 1
@@ -900,13 +938,15 @@ class LevelManager:
         
         # level up
         if self.level > old_lvl:
+            if play:
+                play_sound('levelup.mp3')
             self.level_up = True
             self.old_level = old_lvl
 
     # add xp
     def add(self, xp):
         self.xp += xp
-        self.update_level()
+        self.update_level(True)
     
     def draw(self):
         # shaking
@@ -1588,7 +1628,9 @@ class LoadingScreen:
             self.key += 1
         if self.key > 300 or lmb_up: # pressed
             if self.frame >= 1:
-                self.switching = True
+                if not self.switching:
+                    self.switching = True
+                    play_sound('start.mp3')
             else:
                 self.key = 0
                 self.frame += 1
