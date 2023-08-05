@@ -1064,7 +1064,8 @@ class BtmBrButton:
 
         if lmb_down and self.hovered:
             self.pressed = True
-            play_sound('down.mp3')
+            if not menu_opened():
+                play_sound('down.mp3')
         if self.pressed and (not self.hovered or lmb_up):
             self.pressed = False
 
