@@ -40,6 +40,7 @@ window = pg.display.set_mode((screenx,screeny), pg.RESIZABLE)
 screen = pg.Surface((windowx, windowy))
 running = True
 pg.display.set_caption('Fish Tycoon')
+pg.display.set_icon(pg.image.load('res/images/logo.png'))
 draw.def_surface = screen
 
 halfx = windowx//2
@@ -148,6 +149,7 @@ def catch(type, shine=False):
     if not shine:
         game.level.add(random.randint([5,50,150][type.stars-1], [10,80,200][type.stars-1]))
     game.regen_dict_inv()
+    play_sound('fish.mp3')
 
 # sells all fish in inventory
 def sell_all():
@@ -1062,11 +1064,13 @@ class BtmBrButton:
 
         if lmb_down and self.hovered:
             self.pressed = True
+            play_sound('down.mp3')
         if self.pressed and (not self.hovered or lmb_up):
             self.pressed = False
 
         if self.hovered and lmb_up and not menu_opened():
             set_menu(self.callback)
+            play_sound('up.mp3')
 
 
 # fish that gets stored in inventory, gets choosed in a rng and all this
@@ -1682,7 +1686,8 @@ class LoadingScreen:
             for i in self.particles:
                 i.draw()
 
-            # text
+            # logo and text
+            draw.image('logo.png', (halfx,halfy), (300,200), 'm', 'm')
             draw.text(lang['click_to_start'], (halfx,windowy-50), size=20, h='m', v='m')
 
         # dimming screen
