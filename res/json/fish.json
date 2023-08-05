@@ -3,8 +3,8 @@
         "size": 50,
         "image": "carp.png",
         "boid_size": [1,3],
-        "rareness": 300,
-        "rareness_increase": -2,
+        "rareness": 400,
+        "rareness_increase": -1,
         "cost": 4,
         "stars": 1
     },
@@ -12,7 +12,7 @@
         "size": 65,
         "image": "cod.png",
         "boid_size": [1,2],
-        "rareness": 75,
+        "rareness": 100,
         "rareness_increase": 1,
         "cost": 10,
         "stars": 1
@@ -21,7 +21,7 @@
         "size": 45,
         "image": "trout.png",
         "boid_size": [1,1],
-        "rareness": 30,
+        "rareness": 50,
         "rareness_increase": 2,
         "cost": 15,
         "stars": 1
@@ -30,7 +30,7 @@
         "size": 80,
         "image": "catfish.png",
         "boid_size": [1,2],
-        "rareness": 25,
+        "rareness": 35,
         "rareness_increase": 2,
         "cost": 30,
         "stars": 1
@@ -39,7 +39,7 @@
         "size": 40,
         "image": "flounder.png",
         "boid_size": [1,4],
-        "rareness": 20,
+        "rareness": 25,
         "rareness_increase": 3,
         "cost": 40,
         "stars": 2
@@ -48,7 +48,7 @@
         "size": 70,
         "image": "salmon.png",
         "boid_size": [1,2],
-        "rareness": 15,
+        "rareness": 18,
         "rareness_increase": 3,
         "cost": 50,
         "stars": 2
@@ -57,7 +57,7 @@
         "size": 80,
         "image": "tuna.png",
         "boid_size": [1,4],
-        "rareness": 10,
+        "rareness": 13,
         "rareness_increase": 3,
         "cost": 70,
         "stars": 2
@@ -66,8 +66,8 @@
         "size": 50,
         "image": "fugu.png",
         "boid_size": [2,5],
-        "rareness": 4,
-        "rareness_increase": 4,
+        "rareness": 5,
+        "rareness_increase": 3,
         "cost": 200,
         "stars": 3
     },
@@ -76,7 +76,7 @@
         "image": "gold_fish.png",
         "boid_size": [1,1],
         "rareness": 1,
-        "rareness_increase": 5,
+        "rareness_increase": 4,
         "cost": 500,
         "stars": 3
     }

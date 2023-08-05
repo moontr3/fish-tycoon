@@ -132,10 +132,11 @@ def add_fish_p(fx):
     game.add_fish_p(fx)
 
 # catches a fish and adds it to the inventory
-def catch(type):
+def catch(type, shine=False):
     game.inventory.append(type)
     game.bin_scale = 1.0
-    game.level.add(random.randint([5,50,150][type.stars-1], [10,80,200][type.stars-1]))
+    if not shine:
+        game.level.add(random.randint([5,50,150][type.stars-1], [10,80,200][type.stars-1]))
     game.regen_dict_inv()
 
 # sells all fish in inventory
@@ -185,15 +186,23 @@ def capacity_remaining(count_fp=True):
 def capacity():
     return game.capacity
 
+# returns player level
+def get_lvl():
+    return game.level.level
+
 # returns whether the menu is opened or not
 def menu_opened():
     return game.overlay != None
 
 # loads a language and applies it
-def load_locale(code):
+def load_locale(code, btn=True):
     global lang, locale
     locale = code
     lang = read_json(f'res/locale/{code}.json',)
+    global game
+    if btn:
+        game.alerts = []
+        alert(lang['lang-change']+' '+lang['this-name'])
 
 # loads a language and applies it
 def change_water(value):
@@ -269,6 +278,15 @@ def cur_smoothness_cost():
     return game.cur_smooth_cost
 
 
+# displays an alert
+def alert(text):
+    global game
+    try:
+        game.alerts.insert(0, Alert(text))
+    except:
+        pass
+
+
 # save the game to the file
 def save():
     data = {
@@ -289,9 +307,9 @@ def save():
 def fetch_locale():
     try:
         data = read('save')
-        load_locale(data['lang'])
+        load_locale(data['lang'], False)
     except Exception as e:
-        load_locale('ru-ru')
+        load_locale('ru-ru', False)
 
 # loads the resize mehtod from the file
 def fetch_resize_method():
@@ -307,7 +325,7 @@ def load():
         data = read('save')
         global tutorial
         tutorial = False
-        load_locale(data['lang'])
+        load_locale(data['lang'], False)
         change_water(data['still_water'])
         game.level.add(data['xp'])
         game.level.update_level()
@@ -323,7 +341,7 @@ def load():
         change_resize_method(data['smoothscale'])
 
     except Exception as e:
-        load_locale('ru-ru')
+        load_locale('ru-ru', False)
         write('save', {
             'inv': [],
             'bal': 0,
@@ -341,6 +359,206 @@ fetch_resize_method()
 
 
 # app classes
+
+
+# alert
+class Alert:
+    def __init__(self, text):
+        self.size = 1
+        self.text = text
+        self.time = 300
+        self.removable = False
+
+    def draw(self, y):
+        ease = easing.QuarticEaseOut(0,24,24).ease(self.size)
+        draw.image('text_shadow.png', (halfx, y), (400,ease), 'm','m', temp=ease != 24)
+        draw.text(self.text, (halfx, y), h='m', v='m', opacity=ease/24*255)
+        return ease
+
+    def update(self):
+        # updating size
+        if self.time > 24 and self.size < 24:
+            self.size += 1
+        if self.time <= 24:
+            self.size = self.time
+
+        # removing
+        self.time -= 1
+        if self.time <= 0:
+            self.removable = True
+
+
+# upgrade menu
+class ShineMenu:
+    def __init__(self):
+        self.update_btn_rect(windowy)
+        self.shining = False
+        self.shine_key = 0.0
+        self.shine_item = None
+        self.shine_item_key = 0.0
+        self.main_menu_dim_key = 0.0
+        self.hover_key = 0.0
+
+    def update_btn_rect(self, y):
+        self.btn_rect = pg.Rect(windowx-200, y, 200,200)
+
+    def draw(self, y):
+        # drawing title
+        draw.text(lang['shine'], (20,y+15), size=32)
+        draw.text(lang['shine-desc'], (20,y+182), (128,128,128), 18, v='b')
+
+        # main menu
+        if not self.shining and self.shine_item == None:
+            # main
+            draw.image('shine_bg.png', (0,y), (500,200))
+            bal = get_balance()
+            draw.image('shine.png', self.btn_rect.center, 
+                (144,144) if self.btn_rect.collidepoint(mouse_pos) and mouse_press[0] and bal >= 175 and capacity_remaining() != 0 else (150,150),
+                'm', 'm', opacity=128 if bal < 175 or capacity_remaining() == 0 else 255
+            )
+
+            # hover text
+            if self.hover_key > 0.0:
+                ease = easing.QuarticEaseOut(0,1,1).ease(self.hover_key)
+                if capacity_remaining() != 0:
+                    draw.text(
+                        lang['buy-for']+' 175', (windowx-200-30*ease, y+100), 
+                        (255,60,60) if bal < 175 else (255,255,255),
+                        h='r', v='m', opacity=ease*255
+                    )
+                    draw.image('coin.png', (windowx-170-30*ease, y+100), (24,24), h='r', v='m', opacity=ease*255)
+                else:
+                    draw.text(lang['full-bin'], (windowx-170-30*ease, y+100), (255,60,60),h='r', v='m', opacity=ease*255)
+
+        # item
+        elif not self.shining:
+            ease = easing.ExponentialEaseOut(0,1,1).ease(1-self.shine_item_key)
+            ease_in = easing.ExponentialEaseOut(0,1,1).ease(self.shine_item_key)
+
+            # bg
+            rect = pg.Rect(0, y, windowx, 200)
+            color = 30+((1-ease))*225
+            pg.draw.rect(screen, (color,color,color), rect)
+
+            # lines on top and bottom
+            xstart = halfx-(halfx-15)*ease
+            xend = halfx+(halfx-15)*ease
+            color = 70+color/255*185
+            color = (color,color,color)
+            
+            # top
+            pg.draw.line(screen, color, (xstart, y+10), (xend, y+10))
+            pg.draw.circle(screen, color, (xstart-3, y+10), 4, 1)
+            pg.draw.circle(screen, color, (xend+3, y+10), 4, 1)
+
+            # bottom
+            pg.draw.line(screen, color, (xstart, y+190), (xend, y+190))
+            pg.draw.circle(screen, color, (xstart-3, y+190), 4, 1)
+            pg.draw.circle(screen, color, (xend+3, y+190), 4, 1)
+
+            # image and name
+            size = int(ease*140)
+            draw.image(self.shine_item.image, (halfx, y+100), (size,size), 'm', 'm', temp=size != 140)
+            draw.text(lang[f'fish-{self.shine_item.key}'], (halfx, y+100-ease*83), (0,0,0), int(1+ease*35), h='m')
+            draw.text(lang[f'fish-{self.shine_item.key}'], (halfx, y+100-ease*85), size=int(1+ease*35), h='m')
+
+            # stars
+            ongoing = halfx-(self.shine_item.stars*(30+ease_in*30)-6-(ease_in*6))/2
+            for i in range(self.shine_item.stars):
+                size = int(24+ease_in*24)
+                draw.image('star.png', (ongoing, y+100+ease*75), (size,size), v='m', temp=size != 24)
+                ongoing += 30+(ease_in*30)
+
+            # text
+            draw.text(lang['click-to-continue'], (windowx-20, y+180), color, v='b', h='r', opacity=255-ease_in*255)
+
+        # shining animation
+        else:
+            # sphere
+            xoffset = random.randint(-int(self.shine_key*10), int(self.shine_key*10))
+            yoffset = random.randint(-int(self.shine_key*10), int(self.shine_key*10))
+            draw.image(
+                'shine.png', (
+                    self.btn_rect.centerx+xoffset,
+                    self.btn_rect.centery+yoffset
+                ), (150,150), 'm', 'm',
+            )
+
+            # bg
+            line_ease = easing.ExponentialEaseIn(0,1,1).ease(self.shine_key)
+            draw.image('shine_bg.png', (-line_ease*500,y), (500,200))
+
+            # line
+            if line_ease > 0.01:
+                color = int(30+(line_ease*225)/2+(self.shine_key*225)/2)
+                pg.draw.line(screen, (color,color,color), (0,y+100), (windowx,y+100), int(line_ease*200))
+
+            # shine
+            ease = easing.ExponentialEaseIn(0,1,1).ease(self.shine_key)/2+self.shine_key/2
+            size = (
+                300+ease*600,
+                300+ease*600
+            )
+            draw.image('sparkle.png', self.btn_rect.center, size, 'm', 'm', ease*300, ease*255, temp=True)
+
+        # dimming
+        if self.main_menu_dim_key > 0.0:
+            surface = pg.Surface((windowx, 200))
+            surface.fill((30,30,30))
+            surface.set_alpha(self.main_menu_dim_key*255)
+            screen.blit(surface, (0,y))
+
+
+    def update(self, y):
+        if y != self.btn_rect.y:
+            self.update_btn_rect(y)
+
+        # pressing
+        if self.btn_rect.collidepoint(mouse_pos) and lmb_up:
+            bal = get_balance()
+            if self.shining or self.shine_item != None:
+                pass
+            elif bal < 175:
+                alert(lang['insufficient-funds'])
+            elif capacity_remaining() == 0:
+                alert(lang['full-inventory'])
+            else:
+                alert(lang['bought-shine'])
+                modify_bal(-175)
+                item = choose_type(get_lvl(), True)
+                catch(item, True)
+                self.shining = True
+                self.shine_item = item
+
+        # shining animation
+        if self.shining:
+            self.shine_key += 0.014
+
+            # ending anim
+            if self.shine_key >= 1.0:
+                self.shining = False
+                self.shine_key = 0.0
+                self.shine_item_key = 1.0
+
+        # item animation
+        if not self.shining and self.shine_item_key > 0.0:
+            self.shine_item_key -= 0.02
+
+        if not self.shining and self.shine_item != None and lmb_up:
+            self.shine_item = None
+            self.main_menu_dim_key = 1.0
+
+        # dimming screen
+        if self.main_menu_dim_key > 0.0:
+            self.main_menu_dim_key -= 0.1
+
+        # hover animation
+        if self.btn_rect.collidepoint(mouse_pos):
+            if self.hover_key < 1.0:
+                self.hover_key += 0.05
+        elif self.hover_key > 0.0:
+            self.hover_key -= 0.05
+
 
 # upgrade element
 class UpgradeElement:
@@ -399,8 +617,9 @@ class UpgradeElement:
         if rect.collidepoint(mouse_pos) and lmb_up:
             bal = get_balance()
             if bal < self.cost:
-                pass
+                alert(lang['insufficient-funds'])
             else:
+                alert(lang['upgraded']+f' {self.text}')
                 if self.limit_callback != None:
                     data = self.limit_callback()
                     data = data[0] < data[1]
@@ -426,7 +645,7 @@ class UpgradeMenu:
 
     def draw(self, y):
         # drawing title
-        size = draw.text(lang['upgrade'], (10,y+5), size=24)[0]+20
+        draw.text(lang['upgrade'], (10,y+5), size=24)
 
         # drawing elements
         ongoing = 10-self.scroll_offset
@@ -553,6 +772,7 @@ class Inventory:
             self.btn_hovered = self.btn_rect.collidepoint(mouse_pos)
             if self.btn_hovered and lmb_up:
                 sell_all()
+                alert(lang['sold-all'])
         elif self.btn_hovered != False:
             self.btn_hovered = False
 
@@ -608,8 +828,8 @@ class Settings:
         self.scroll_vel = 0
         self.items = [
             SettingsSwitch([
-                SwitchElement('ru-ru', 'ru-ru.png', 'russian'),
-                SwitchElement('en-us', 'en-us.png', 'english'),
+                SwitchElement('ru-ru', 'ru-ru.png', 'this-name'),
+                SwitchElement('en-us', 'en-us.png', 'this-name'),
             ], 'language', load_locale, 'locale'),
             SettingsSwitch([
                 SwitchElement(True, 'still_water.png', 'still-water'),
@@ -624,7 +844,7 @@ class Settings:
 
     def draw(self, y):
         # drawing title
-        size = draw.text(lang['settings'], (10,y+5), size=24)[0]+20
+        draw.text(lang['settings'], (10,y+5), size=24)
         
         # drawing elements
         ongoing = 10-self.scroll_offset
@@ -670,12 +890,12 @@ class LevelManager:
         # percentage and all that stuff
         old_lvl = self.level
         self.level = 1
-        self.total_level_xp = 50
+        self.total_level_xp = 75
         self.level_xp = self.xp
         while self.level_xp >= self.total_level_xp:
             self.level += 1
             self.level_xp -= self.total_level_xp
-            self.total_level_xp += 30
+            self.total_level_xp += 50
         self.percentage = self.level_xp/self.total_level_xp
         
         # level up
@@ -1054,6 +1274,7 @@ class Game:
         self.spawn_after = self.spawn_speed
         self.fish_p = []
 
+        self.alerts = []
         self.balance = 0
         self.bin_scale = 0.0
         self.full_inv_appearance = 0.0
@@ -1064,7 +1285,7 @@ class Game:
 
         self.buttons = [
             BtmBrButton('inventory.png', 'inventory',0,Inventory),
-            BtmBrButton('shine_ball.png', 'shine',1,Inventory),
+            BtmBrButton('shine_ball.png', 'shine',1,ShineMenu),
             BtmBrButton('up.png', 'upgrade',2,UpgradeMenu),
             BtmBrButton('settings.png', 'settings',3,Settings),
         ]
@@ -1162,6 +1383,11 @@ class Game:
             # updating
             if self.overlay != None:
                 self.overlay.update(self.menu_ease)
+
+        # alerts
+        for i in self.alerts:
+            i.update()
+        self.alerts = [i for i in self.alerts if not i.removable]
             
 
     # draws the gui
@@ -1202,9 +1428,15 @@ class Game:
         # xp level
         self.level.draw()
 
+        # alerts
+        ongoing = 150
+        for i in self.alerts:
+            ongoing += i.draw(ongoing)+6
+
         # fishing rod
         draw.image('hook.png', self.rod_pos, (20,35), 'r','m')
         pg.draw.aaline(screen, (0,0,0), (self.rod_pos[0]-11, self.rod_pos[1]-17), (self.rod_offset-11, -1))
+
 
     # updates the game
     def update(self):
@@ -1287,9 +1519,9 @@ class Game:
 
 # dust particle or whatever this thing is on the loading screen
 class LSParticle:
-    def __init__(self):
+    def __init__(self, y=windowy+10):
         self.x = random.randint(halfx-200,halfx+200)
-        self.y = windowy+10
+        self.y = y
         self.removable = False
         self.speed = random.random()/2+0.75
 
@@ -1339,8 +1571,13 @@ class LoadingScreen:
         self.surface = pg.Surface((windowx,windowy))
         self.switch_key = 0.0
         self.switching = False
-        self.particles = []
         self.particle_spawn_timeout = 0
+        self.particles = []
+        # pre-generating particles
+        ongoing = windowy-10
+        while ongoing > 0:
+            self.particles.append(LSParticle(ongoing))
+            ongoing -= random.randint(15,35)
 
     def update_alpha(self):
         self.alpha = self.key*5 if self.key < 51 else min(255, (300-self.key)*5)
@@ -1414,7 +1651,10 @@ class LoadingScreen:
 
         if self.switch_key > 0.0:
             ease = easing.ExponentialEaseIn(0,1,1).ease(self.switch_key)
-            size = (50+ease*500+self.switch_key*500,50+ease*500+self.switch_key*500)
+            size = (
+                50+ease*400+self.switch_key*400,
+                50+ease*400+self.switch_key*400
+            )
             draw.image('glow.png', (halfx,halfy), size, 'm', 'm', opacity=ease*255, temp=True)
             self.surface.fill((255,255,255))
             self.surface.set_alpha(ease*255)
